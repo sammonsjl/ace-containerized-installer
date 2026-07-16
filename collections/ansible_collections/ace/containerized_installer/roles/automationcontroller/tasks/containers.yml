@@ -13,7 +13,7 @@
         'SUPERVISOR_CONFIG_PATH': '/etc/supervisord_rsyslog.conf',
       }) }}
     secrets: '{{ _controller_secrets }}'
-    volume: '{{ _controller_common_volumes + _controller_service_volumes }}'
+    volume: '{{ _controller_common_volumes + [_licensing_volume] + _controller_service_volumes }}'
     generate_systemd:
       container_prefix: ''
       separator: ''
@@ -40,7 +40,7 @@
         'CONTAINER_HOST': 'unix://run/user/' ~ ansible_user_uid ~ '/podman/podman.sock',
       }) }}
     secrets: '{{ _controller_secrets }}'
-    volume: '{{ _controller_common_volumes + _controller_service_volumes + _controller_task_volumes }}'
+    volume: '{{ _controller_common_volumes + [_licensing_volume] + _controller_service_volumes + _controller_task_volumes }}'
     generate_systemd:
       container_prefix: ''
       separator: ''
@@ -63,7 +63,7 @@
         'SUPERVISOR_CONFIG_PATH': '/etc/supervisord_web.conf',
       }) }}
     secrets: '{{ _controller_secrets }}'
-    volume: '{{ _controller_common_volumes + _controller_service_volumes + _controller_web_volumes }}'
+    volume: '{{ _controller_common_volumes + [_licensing_volume] + _controller_service_volumes + _controller_web_volumes }}'
     generate_systemd:
       container_prefix: ''
       separator: ''
