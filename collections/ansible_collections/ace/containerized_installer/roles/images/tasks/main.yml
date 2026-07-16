@@ -13,7 +13,8 @@
     - name: Tag pulled images to the local names the rest of the collection expects
       containers.podman.podman_tag:
         image: '{{ item.ghcr }}'
-        tag: '{{ item.local }}'
+        target_names:
+          - '{{ item.local }}'
       loop:
         - { ghcr: '{{ gateway_ghcr_image }}', local: '{{ gateway_image }}' }
         - { ghcr: '{{ hub_ghcr_image }}', local: '{{ hub_image }}' }
