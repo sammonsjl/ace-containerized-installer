@@ -24,6 +24,15 @@
     - controller/data/rsyslog
     - receptor/etc
 
+# Containers log to journald (containers.conf); without this group,
+# journalctl --user shows nothing and debugging is blind. Bundle does the same.
+- name: Add the deploy user to the systemd-journal group
+  ansible.builtin.user:
+    name: '{{ ansible_user_id }}'
+    groups: systemd-journal
+    append: true
+  become: true
+
 - name: Check if linger is already enabled
   ansible.builtin.stat:
     path: '/var/lib/systemd/linger/{{ ansible_user_id }}'
