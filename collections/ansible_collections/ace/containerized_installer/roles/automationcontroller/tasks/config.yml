@@ -28,3 +28,37 @@
     dest: '{{ ace_dir }}/controller/etc/launch_awx_task.sh'
     mode: '0750'
   notify: Restart automation-controller-task
+
+# The platform UI shows a spurious "subscription out of compliance" banner:
+# AWX's OpenLicense.validate() returns no `compliant` key and the UI reads
+# missing as non-compliant. Extract licensing.py from the image, add the key
+# (an open license is unlimited — nothing to be out of compliance with),
+# and mount it over the original. Re-extracted every run, so it tracks the
+# awx:devel tag.
+- name: Locate licensing.py in the controller image
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --entrypoint
+      - ''
+      - '{{ controller_image }}'
+      - /var/lib/awx/venv/awx/bin/python3
+      - -c
+      - 'import awx.main.utils.licensing as l; print(l.__file__)'
+  register: _licensing_path
+  changed_when: false
+
+- name: Extract and patch licensing.py
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    podman run --rm --entrypoint '' {{ controller_image }}
+    cat {{ _licensing_path.stdout | trim }}
+    | sed 's/^\( *\)valid_key=True,$/\1valid_key=True,\n\1compliant=True,/'
+    > {{ ace_dir }}/controller/etc/licensing.py
+  changed_when: false
+
+- name: Remember the licensing.py mount
+  ansible.builtin.set_fact:
+    _licensing_volume: '{{ ace_dir }}/controller/etc/licensing.py:{{ _licensing_path.stdout | trim }}:ro,z'
