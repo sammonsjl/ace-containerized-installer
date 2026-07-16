@@ -22,14 +22,17 @@ _controller_common_volumes:
   - '{{ ace_dir }}/controller/etc/conf.d/execution_environments.py:/etc/tower/conf.d/execution_environments.py:ro,z'
   - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'
 
-# Shared by web/task/rsyslog: job dirs (same-path binds), receptor + redis sockets
+# Shared by web/task/rsyslog: job dirs (same-path binds), receptor + redis
+# sockets. The data binds need :z — the web container is SELinux-confined
+# (unlike task/receptor which run label=disable), and unlabeled home dirs
+# are unreadable to it (/api/v2/config/ lists PROJECTS_ROOT -> 500).
 _controller_service_volumes:
-  - '{{ controller_data_dir }}/job_execution:{{ controller_data_dir }}/job_execution'
-  - '{{ controller_data_dir }}/job_status:{{ controller_data_dir }}/job_status'
-  - '{{ controller_data_dir }}/projects:{{ controller_data_dir }}/projects'
-  - '{{ controller_data_dir }}/logs:/var/log/tower'
-  - '{{ controller_data_dir }}/rsyslog:/var/lib/awx/rsyslog'
-  - '{{ ace_dir }}/receptor/etc/receptor.conf:/etc/receptor/receptor.conf:ro'
+  - '{{ controller_data_dir }}/job_execution:{{ controller_data_dir }}/job_execution:z'
+  - '{{ controller_data_dir }}/job_status:{{ controller_data_dir }}/job_status:z'
+  - '{{ controller_data_dir }}/projects:{{ controller_data_dir }}/projects:z'
+  - '{{ controller_data_dir }}/logs:/var/log/tower:z'
+  - '{{ controller_data_dir }}/rsyslog:/var/lib/awx/rsyslog:z'
+  - '{{ ace_dir }}/receptor/etc/receptor.conf:/etc/receptor/receptor.conf:ro,z'
   - 'receptor_run:/run/receptor'
   - 'redis_run:/run/redis'
 
