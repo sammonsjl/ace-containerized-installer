@@ -1,2 +1,22 @@
 ---
-# stub — implemented in a later milestone
+- name: Check whether the gateway image is already loaded
+  containers.podman.podman_image_info:
+    name: '{{ gateway_image }}'
+  register: _gateway_image_info
+
+- name: Load the gateway image from the delivered tarball
+  containers.podman.podman_load:
+    input: '{{ gateway_image_tar }}'
+  when: _gateway_image_info.images | length == 0
+
+- name: Pull public images
+  containers.podman.podman_image:
+    name: '{{ item }}'
+  loop:
+    - '{{ envoy_image }}'
+    - '{{ controller_image }}'
+    - '{{ receptor_image }}'
+    - '{{ ee_image }}'
+    - '{{ postgresql_image }}'
+    - '{{ redis_image }}'
+    - '{{ trust_image }}'

@@ -18,6 +18,7 @@ receptor_image: quay.io/ansible/receptor:latest
 ee_image: quay.io/ansible/awx-ee:latest
 postgresql_image: docker.io/library/postgres:15
 redis_image: docker.io/library/redis:7
+trust_image: quay.io/rockylinux/rockylinux:9   # EL9 userspace for one-shot update-ca-trust
 
 # ── Ports (single host, network:host — separation is by port number) ────────
 envoy_https_port: 443

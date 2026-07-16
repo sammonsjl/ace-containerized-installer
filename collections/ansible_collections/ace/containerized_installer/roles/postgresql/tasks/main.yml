@@ -1,2 +1,71 @@
 ---
-# stub — implemented in a later milestone
+- name: Create the postgresql admin password secret
+  containers.podman.podman_secret:
+    name: postgresql_admin_password
+    data: '{{ postgresql_admin_password }}'
+    skip_existing: true
+
+- name: Create the postgresql data volume
+  containers.podman.podman_volume:
+    name: postgresql
+
+# Official postgres image, NOT keep-id: the server runs as in-image uid 999.
+# Like the bundle, we pin that uid onto the host user with an explicit uidmap
+# (container 999 -> the rootless user), so the host-owned 0640 TLS key reads
+# as postgres:postgres inside the container.
+- name: Create the postgresql container
+  containers.podman.podman_container:
+    name: postgresql
+    image: '{{ postgresql_image }}'
+    state: created
+    network: host
+    uidmap:
+      - '999:0:1'
+      - '0:1:999'
+      - '1000:1000:64536'
+    gidmap:
+      - '999:0:1'
+      - '0:1:999'
+      - '1000:1000:64536'
+    env: '{{ common_env }}'
+    secrets:
+      - 'postgresql_admin_password,type=env,target=POSTGRES_PASSWORD'
+    command: >-
+      postgres
+      -c port={{ postgresql_port }}
+      -c max_connections={{ postgresql_max_connections }}
+      -c password_encryption=scram-sha-256
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/server.cert
+      -c ssl_key_file=/var/lib/postgresql/server.key
+    volume:
+      - 'postgresql:/var/lib/postgresql/data'
+      - '{{ ace_dir }}/postgresql/server.cert:/var/lib/postgresql/server.cert:ro,Z'
+      - '{{ ace_dir }}/postgresql/server.key:/var/lib/postgresql/server.key:ro,Z'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  register: _postgresql_container
+  notify: Restart postgresql
+
+- name: Enable and start the postgresql unit
+  ansible.builtin.systemd:
+    name: postgresql
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Wait for postgresql to accept connections
+  community.postgresql.postgresql_ping:
+    login_host: 127.0.0.1
+    login_port: '{{ postgresql_port }}'
+    login_user: '{{ postgresql_admin_user }}'
+    login_password: '{{ postgresql_admin_password }}'
+    login_db: postgres
+  register: _pg_ping
+  until: _pg_ping.is_available
+  retries: 12
+  delay: 5
