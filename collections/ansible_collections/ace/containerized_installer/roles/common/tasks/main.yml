@@ -1,2 +1,69 @@
 ---
-# stub — implemented in a later milestone
+- name: Create component config directories
+  ansible.builtin.file:
+    path: '{{ ace_dir }}/{{ item }}'
+    state: directory
+    mode: '0770'
+  loop:
+    - tls
+    - tls/extracted/edk2
+    - tls/extracted/java
+    - tls/extracted/openssl
+    - tls/extracted/pem
+    - postgresql
+    - redis
+    - gatewayproxy/etc
+    - gateway/etc
+    - gateway/nginx/etc
+    - controller/etc
+    - controller/etc/conf.d
+    - controller/data/job_execution
+    - controller/data/job_status
+    - controller/data/projects
+    - controller/data/logs
+    - controller/data/rsyslog
+    - receptor/etc
+
+- name: Check if linger is already enabled
+  ansible.builtin.stat:
+    path: '/var/lib/systemd/linger/{{ ansible_user_id }}'
+  register: _linger
+
+# User services must survive logout/reboot — same as the bundle.
+- name: Enable systemd linger for the deploy user
+  ansible.builtin.command: 'loginctl enable-linger {{ ansible_user_id }}'
+  when: not _linger.stat.exists
+  changed_when: true
+
+- name: Ensure ~/.config/containers exists
+  ansible.builtin.file:
+    path: '{{ ansible_user_dir }}/.config/containers'
+    state: directory
+    mode: '0755'
+
+- name: Configure the podman engine
+  ansible.builtin.template:
+    src: containers.conf.j2
+    dest: '{{ ansible_user_dir }}/.config/containers/containers.conf'
+    mode: '0644'
+
+# The controller task container and receptor drive host podman through this
+# socket (CONTAINER_HOST) to launch execution-environment containers.
+- name: Enable the user podman API socket
+  ansible.builtin.systemd:
+    name: podman.socket
+    scope: user
+    enabled: true
+    state: started
+
+# THE one privileged task: rootless envoy must bind 443/80.
+- name: Allow rootless binding of ports >= 80
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_unprivileged_port_start
+    value: '80'
+    sysctl_file: /etc/sysctl.d/50-ace-unprivileged-ports.conf
+    state: present
+  become: true
+
+- name: Set up the internal CA and component certificates
+  ansible.builtin.import_tasks: tls.yml

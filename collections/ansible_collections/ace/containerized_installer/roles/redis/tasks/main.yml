@@ -1,2 +1,101 @@
 ---
-# stub — implemented in a later milestone
+# Two instances, like the containerized installer on a single node:
+#   redis-unix — unix socket only, the controller's broker/cache
+#   redis-tcp  — TLS on 6379 with password auth, the gateway's cache
+
+- name: Create redis volumes
+  containers.podman.podman_volume:
+    name: '{{ item }}'
+  loop:
+    - redis_run
+    - redis_data_unix
+    - redis_data_tcp
+
+- name: Template redis configurations
+  ansible.builtin.template:
+    src: '{{ item }}.conf.j2'
+    dest: '{{ ace_dir }}/redis/{{ item }}.conf'
+    mode: '0640'
+  loop:
+    - redis-unix
+    - redis-tcp
+  notify:
+    - Restart redis-unix
+    - Restart redis-tcp
+
+- name: Create the redis-unix container
+  containers.podman.podman_container:
+    name: redis-unix
+    image: '{{ redis_image }}'
+    state: created
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ common_env }}'
+    command: redis-server /etc/redis.conf
+    volume:
+      - '{{ ace_dir }}/redis/redis-unix.conf:/etc/redis.conf:ro,Z'
+      - 'redis_run:/run/redis:U'
+      - 'redis_data_unix:/data:U'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart redis-unix
+
+- name: Create the redis-tcp container
+  containers.podman.podman_container:
+    name: redis-tcp
+    image: '{{ redis_image }}'
+    state: created
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ common_env }}'
+    command: redis-server /etc/redis.conf
+    volume:
+      - '{{ ace_dir }}/redis/redis-tcp.conf:/etc/redis.conf:ro,Z'
+      - '{{ ace_dir }}/redis/redis-tcp.cert:/etc/redis-tls/redis-tcp.cert:ro,Z'
+      - '{{ ace_dir }}/redis/redis-tcp.key:/etc/redis-tls/redis-tcp.key:ro,Z'
+      - '{{ ace_dir }}/tls/ca.cert:/etc/redis-tls/ca.cert:ro,Z'
+      - 'redis_data_tcp:/data:U'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart redis-tcp
+
+- name: Enable and start the redis units
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - redis-unix
+    - redis-tcp
+
+- name: Wait for the redis unix socket
+  ansible.builtin.command: >-
+    podman exec redis-unix redis-cli -s /run/redis/redis.sock ping
+  register: _redis_unix_ping
+  until: _redis_unix_ping.stdout == 'PONG'
+  retries: 6
+  delay: 5
+  changed_when: false
+
+- name: Wait for redis-tcp over TLS
+  ansible.builtin.command: >-
+    podman exec redis-tcp redis-cli --tls
+    --cacert /etc/redis-tls/ca.cert
+    -h {{ ace_hostname }} -p {{ redis_tcp_port }}
+    -a {{ redis_password }} ping
+  register: _redis_tcp_ping
+  until: _redis_tcp_ping.stdout == 'PONG'
+  retries: 6
+  delay: 5
+  changed_when: false
+  no_log: true

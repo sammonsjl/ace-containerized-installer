@@ -1,0 +1,96 @@
+---
+# One internal CA; every component cert is signed by it. Containers see the
+# CA through the regenerated system trust bundle mounted from tls/extracted.
+
+- name: Generate the CA private key
+  community.crypto.openssl_privatekey:
+    path: '{{ ace_dir }}/tls/ca.key'
+    type: RSA
+    size: 4096
+    mode: '0600'
+
+- name: Generate the CA certificate signing request
+  community.crypto.openssl_csr:
+    path: '{{ ace_dir }}/tls/ca.csr'
+    privatekey_path: '{{ ace_dir }}/tls/ca.key'
+    common_name: ACE Platform CA
+    basic_constraints: ['CA:TRUE']
+    basic_constraints_critical: true
+    key_usage: ['keyCertSign', 'cRLSign']
+    key_usage_critical: true
+
+- name: Generate the self-signed CA certificate
+  community.crypto.x509_certificate:
+    path: '{{ ace_dir }}/tls/ca.cert'
+    csr_path: '{{ ace_dir }}/tls/ca.csr'
+    privatekey_path: '{{ ace_dir }}/tls/ca.key'
+    provider: selfsigned
+    selfsigned_not_after: '+3650d'
+  register: _ca_cert
+
+- name: Generate component private keys
+  community.crypto.openssl_privatekey:
+    path: '{{ ace_dir }}/{{ item.dir }}/{{ item.name }}.key'
+    type: RSA
+    size: 2048
+    mode: '{{ item.keymode | default("0600") }}'
+  loop: '{{ component_certs }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: Generate component certificate signing requests
+  community.crypto.openssl_csr:
+    path: '{{ ace_dir }}/{{ item.dir }}/{{ item.name }}.csr'
+    privatekey_path: '{{ ace_dir }}/{{ item.dir }}/{{ item.name }}.key'
+    common_name: '{{ ace_hostname }}'
+    subject_alt_name: '{{ cert_sans }}'
+    key_usage: ['digitalSignature', 'keyEncipherment']
+    extended_key_usage: ['serverAuth', 'clientAuth']
+  loop: '{{ component_certs }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: Sign component certificates with the CA
+  community.crypto.x509_certificate:
+    path: '{{ ace_dir }}/{{ item.dir }}/{{ item.name }}.cert'
+    csr_path: '{{ ace_dir }}/{{ item.dir }}/{{ item.name }}.csr'
+    provider: ownca
+    ownca_path: '{{ ace_dir }}/tls/ca.cert'
+    ownca_privatekey_path: '{{ ace_dir }}/tls/ca.key'
+    ownca_not_after: '+825d'
+    force: '{{ _ca_cert is changed }}'
+  loop: '{{ component_certs }}'
+  loop_control:
+    label: '{{ item.name }}'
+  register: _component_certs
+
+- name: Check for an existing extracted trust bundle
+  ansible.builtin.stat:
+    path: '{{ ace_dir }}/tls/extracted/pem/tls-ca-bundle.pem'
+  register: _trust_pem
+
+# Rebuild the system trust bundle with our CA included, into tls/extracted —
+# every container bind-mounts this over /etc/pki/ca-trust/extracted so
+# {{ ca_trust_bundle }} resolves to a CA-inclusive bundle.
+- name: Regenerate the container trust bundle
+  containers.podman.podman_container:
+    name: ace-update-ca-trust
+    image: '{{ trust_image }}'
+    command: update-ca-trust
+    user: root
+    rm: true
+    detach: false
+    volume:
+      - '{{ ace_dir }}/tls/ca.cert:/etc/pki/ca-trust/source/anchors/ace-ca.cert:ro,Z'
+      - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:Z'
+  when: _ca_cert is changed or not _trust_pem.stat.exists
+
+- name: Check the extracted trust bundle exists
+  ansible.builtin.stat:
+    path: '{{ ace_dir }}/tls/extracted/pem/tls-ca-bundle.pem'
+  register: _trust_pem_after
+
+- name: Assert the trust bundle was generated
+  ansible.builtin.assert:
+    that: _trust_pem_after.stat.exists
+    fail_msg: 'update-ca-trust did not produce tls/extracted/pem/tls-ca-bundle.pem'

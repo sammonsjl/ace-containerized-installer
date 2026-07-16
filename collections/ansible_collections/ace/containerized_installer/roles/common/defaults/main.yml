@@ -1,0 +1,16 @@
+---
+# SANs stamped on every component certificate
+cert_sans:
+  - 'DNS:{{ ace_hostname }}'
+  - 'DNS:localhost'
+  - 'IP:{{ ace_ip }}'
+  - 'IP:127.0.0.1'
+
+# component certs: {dir under ace_dir, basename}; the postgres uidmap pins
+# container-postgres onto the host user, and postgres requires 0600 for a
+# key owned by the database user
+component_certs:
+  - { dir: postgresql, name: server, keymode: '0600' }
+  - { dir: gateway/etc, name: gateway }
+  - { dir: redis, name: redis-tcp }
+  - { dir: controller/etc, name: controller }

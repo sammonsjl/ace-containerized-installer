@@ -1,0 +1,14 @@
+---
+- name: Restart redis-unix
+  ansible.builtin.systemd:
+    name: redis-unix
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart redis-tcp
+  ansible.builtin.systemd:
+    name: redis-tcp
+    scope: user
+    daemon_reload: true
+    state: restarted

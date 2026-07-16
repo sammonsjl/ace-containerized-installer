@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[containers]
+log_driver = "journald"
+pids_limit = 4096
+
+[engine]
+runtime = "crun"
