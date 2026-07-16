@@ -1,0 +1,56 @@
+---
+- name: Assert supported OS and architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution_major_version | int == 9
+      - ansible_os_family == 'RedHat'
+      - ansible_architecture in ['aarch64', 'x86_64']
+    fail_msg: >-
+      This installer targets EL9 (Rocky/Alma/RHEL 9) on aarch64 or x86_64.
+
+- name: Assert enough memory for the full stack
+  ansible.builtin.assert:
+    that: ansible_memtotal_mb >= 7000
+    fail_msg: 'At least 8 GB of RAM is required (found {{ ansible_memtotal_mb }} MB).'
+
+- name: Check podman is installed
+  ansible.builtin.command: podman --version
+  register: _podman_version
+  changed_when: false
+
+- name: Assert podman version
+  ansible.builtin.assert:
+    that: _podman_version.stdout.split()[-1] is version(podman_min_version, '>=')
+    fail_msg: 'podman >= {{ podman_min_version }} required, found: {{ _podman_version.stdout }}'
+
+- name: Check the gateway image tarball is present
+  ansible.builtin.stat:
+    path: '{{ gateway_image_tar }}'
+  register: _gateway_tar
+
+- name: Assert the gateway image tarball exists
+  ansible.builtin.assert:
+    that: _gateway_tar.stat.exists
+    fail_msg: >-
+      {{ gateway_image_tar }} not found. On the build host run:
+      podman save --format oci-archive -o images/ace-gateway-arm64.tar localhost/ace-gateway:dev
+
+- name: Collect listening TCP ports
+  ansible.builtin.command: ss -Hltn
+  register: _listening
+  changed_when: false
+
+- name: Assert required ports are free
+  ansible.builtin.assert:
+    that: >-
+      _listening.stdout_lines
+      | select('search', ':' ~ item ~ '\s')
+      | list | length == 0
+    fail_msg: 'Port {{ item }} is already in use on the target.'
+  loop:
+    - '{{ envoy_https_port }}'
+    - '{{ envoy_http_port }}'
+    - '{{ gateway_nginx_port }}'
+    - '{{ controller_nginx_port }}'
+    - '{{ postgresql_port }}'
+    - '{{ redis_tcp_port }}'

@@ -1,0 +1,59 @@
+---
+# ── Identity ────────────────────────────────────────────────────────────────
+ace_hostname: ace-installer
+ace_ip: 192.168.56.30
+
+# Base directory for all component config on the target (the RH bundle uses ~/aap)
+ace_dir: "{{ ansible_user_dir }}/ace"
+
+# ── Images ──────────────────────────────────────────────────────────────────
+# The gateway image is loaded from /vagrant/images/ace-gateway-arm64.tar
+# (the GHCR copy is amd64-only for now; this lab VM is aarch64).
+gateway_image: localhost/ace-gateway:dev
+gateway_image_tar: /vagrant/images/ace-gateway-arm64.tar
+
+envoy_image: docker.io/envoyproxy/envoy:v1.33.5
+controller_image: ghcr.io/ansible/awx:devel
+receptor_image: quay.io/ansible/receptor:latest
+ee_image: quay.io/ansible/awx-ee:latest
+postgresql_image: docker.io/library/postgres:15
+redis_image: docker.io/library/redis:7
+
+# ── Ports (single host, network:host — separation is by port number) ────────
+envoy_https_port: 443
+envoy_http_port: 80
+gateway_nginx_port: 8446          # gateway nginx (ssl), behind envoy
+gateway_uwsgi_port: 8052          # 127.0.0.1 only
+gateway_grpc_port: 50051          # envoy auth/control-plane gRPC
+controller_nginx_port: 8443       # controller nginx (ssl)
+controller_nginx_http_port: 8080
+controller_uwsgi_port: 8050       # 127.0.0.1 only
+controller_daphne_port: 8051      # 127.0.0.1 only
+postgresql_port: 5432
+redis_tcp_port: 6379
+
+# ── Credentials ──────────────────────────────────────────────────────────────
+# Lab defaults — override with -e or vault for anything beyond a lab.
+# Generated values persist in .secrets/ (gitignored) so re-runs are idempotent.
+admin_user: admin
+admin_email: admin@example.com
+admin_password: "{{ lookup('password', secrets_dir ~ '/admin_password length=24 chars=ascii_letters,digits') }}"
+postgresql_admin_user: postgres
+postgresql_admin_password: "{{ lookup('password', secrets_dir ~ '/pg_admin_password length=24 chars=ascii_letters,digits') }}"
+gateway_pg_password: "{{ lookup('password', secrets_dir ~ '/gateway_pg_password length=24 chars=ascii_letters,digits') }}"
+controller_pg_password: "{{ lookup('password', secrets_dir ~ '/controller_pg_password length=24 chars=ascii_letters,digits') }}"
+redis_password: "{{ lookup('password', secrets_dir ~ '/redis_password length=24 chars=ascii_letters,digits') }}"
+gateway_secret_key: "{{ lookup('password', secrets_dir ~ '/gateway_secret_key length=64 chars=ascii_letters,digits') }}"
+controller_secret_key: "{{ lookup('password', secrets_dir ~ '/controller_secret_key length=64 chars=ascii_letters,digits') }}"
+secrets_dir: "{{ (playbook_dir ~ '/../.secrets') | realpath }}"
+
+# ── Shared container environment ─────────────────────────────────────────────
+# OPENSSL_armcap=0: aarch64 VMs under VMware Fusion on Apple Silicon SIGILL
+# (exit 132) in anything importing python-cryptography without it. Harmless on
+# x86_64 and on real arm64 it only disables asm acceleration.
+common_env:
+  OPENSSL_armcap: "0"
+
+# ── URLs ─────────────────────────────────────────────────────────────────────
+gateway_main_url: "https://{{ ace_hostname }}"
+ca_trust_bundle: /etc/pki/tls/certs/ca-bundle.crt
