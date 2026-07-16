@@ -1,0 +1,57 @@
+---
+# Install order mirrors the containerized installer's phases:
+#   preflight → common (podman/TLS) → database → redis → gateway → gateway
+#   postinstall (service registration) → receptor → controller → merge.
+#
+# Everything runs become:false (rootless podman) except the single sysctl
+# task inside the common role that lets rootless envoy bind 443/80.
+- name: Install the ACE control plane
+  hosts: ace-installer
+  become: false
+  gather_facts: true
+  # Protects the Ansible modules themselves (community.crypto imports
+  # python-cryptography ON THE TARGET, which SIGILLs on aarch64-under-Fusion
+  # without OPENSSL_armcap=0).
+  environment: '{{ common_env }}'
+  tasks:
+    - name: Run preflight checks
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.preflight
+
+    - name: Configure podman, linger, TLS CA and sysctl
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.common
+
+    - name: Load and pull container images
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.images
+
+    - name: Install PostgreSQL
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.postgresql
+
+    - name: Install Redis (unix socket + standalone TCP)
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.redis
+
+    - name: Install the gateway (web + init)
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationgateway
+
+    - name: Register services in the gateway (postinstall)
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationgateway
+        tasks_from: postinstall
+
+    - name: Install receptor
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.receptor
+
+    - name: Install the controller
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationcontroller
+
+    - name: Merge service data into the gateway
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationgateway
+        tasks_from: merge

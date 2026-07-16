@@ -1,0 +1,24 @@
+---
+namespace: ace
+name: containerized_installer
+version: 0.1.0
+readme: README.md
+authors:
+  - Jamie Sammons
+description: >-
+  Open-source mirror of the AAP containerized installer mechanics: deploys the
+  ACE control plane (gateway + AWX controller) as rootless podman containers
+  managed by systemd user units. Written from scratch against upstream projects;
+  the Red Hat setup bundle is used as a behavioral spec only.
+license:
+  - Apache-2.0
+tags:
+  - ace
+  - awx
+  - podman
+dependencies:
+  containers.podman: '>=1.15.0'
+  community.crypto: '>=2.16.0'
+  community.postgresql: '>=3.4.0'
+  ansible.posix: '>=1.5.0'
+repository: https://github.com/sammonsjl/ace-containerized-installer
