@@ -1,0 +1,23 @@
+---
+- name: Enable and start the hub units
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - automation-hub-api
+    - automation-hub-content
+    - automation-hub-worker-1
+    - automation-hub-web
+
+- name: Wait for the hub API to answer
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ hub_nginx_port }}/pulp/api/v3/status/'
+    validate_certs: false
+    status_code: 200
+  register: _hub_ping
+  until: _hub_ping.status == 200
+  retries: 30
+  delay: 10

@@ -23,7 +23,9 @@
     name: automation-gateway-proxy
     image: '{{ envoy_image }}'
     state: created
-    command: envoy --config-path /etc/envoy/envoy.yaml --log-path /dev/stdout
+    # no --log-path: envoy logs to stderr, which lands in journald (a
+    # --log-path of /dev/stdout goes nowhere in a non-tty container)
+    command: envoy --config-path /etc/envoy/envoy.yaml
     network: host
     user: '{{ ansible_user_uid }}'
     userns: keep-id

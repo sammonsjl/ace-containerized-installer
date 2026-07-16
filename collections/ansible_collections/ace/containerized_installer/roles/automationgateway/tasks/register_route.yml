@@ -1,0 +1,43 @@
+---
+# Registers one extra gateway route to the hub cluster.
+# Expects `_route` = {name, path}; pass-through (service_path == gateway_path).
+
+- name: 'Look up the hub cluster for route {{ _route.name }}'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_clusters/?name=hub'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _route_cluster_q
+
+- name: 'Look up route {{ _route.name }}'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/routes/?name={{ _route.name }}'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _route_q
+
+- name: 'Create route {{ _route.name }}'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/routes/'
+    validate_certs: false
+    method: POST
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: '{{ _route.name }}'
+      description: 'hub route {{ _route.path }}'
+      gateway_path: '{{ _route.path }}'
+      service_path: '{{ _route.path }}'
+      http_port: '{{ _http_port_id | int }}'
+      service_cluster: '{{ _route_cluster_q.json.results[0].id | int }}'
+      is_service_https: true
+      service_port: '{{ hub_nginx_port | int }}'
+      enable_gateway_auth: true
+    status_code: 201
+  when: _route_q.json.count == 0

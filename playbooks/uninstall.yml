@@ -7,6 +7,10 @@
   gather_facts: false
   vars:
     _units:
+      - automation-hub-web
+      - automation-hub-worker-1
+      - automation-hub-content
+      - automation-hub-api
       - automation-eda-web
       - automation-eda-daphne
       - automation-eda-api
@@ -22,6 +26,7 @@
       - redis-unix
       - postgresql
     _volumes:
+      - hub_data
       - eda_data
       - eda_nginx
       - postgresql
@@ -32,6 +37,11 @@
       - receptor_data
       - receptor_runner
     _secrets:
+      - hub_settings
+      - hub_secret_key
+      - hub_database_fields
+      - hub_admin_password
+      - galaxy_resource_server
       - eda_secret_key
       - eda_admin_password
       - eda_db_password

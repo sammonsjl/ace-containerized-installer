@@ -1,0 +1,53 @@
+---
+- name: Run hub database migrations
+  containers.podman.podman_container:
+    name: automation-hub-init
+    image: '{{ hub_image }}'
+    command: pulpcore-manager migrate --noinput
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _hub_env }}'
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_common_volumes }}'
+  register: _hub_migrate
+  retries: 3
+  delay: 20
+  until: _hub_migrate is not failed
+  changed_when: true
+
+- name: Set the hub admin password
+  containers.podman.podman_container:
+    name: automation-hub-init
+    image: '{{ hub_image }}'
+    command: pulpcore-manager reset-admin-password --password {{ admin_password }}
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: "{{ _hub_env | combine({'ANSIBLE_REVERSE_RESOURCE_SYNC': 'false'}) }}"
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_common_volumes }}'
+  changed_when: true
+  no_log: true
+
+# Periodic resource sync from the gateway (orgs/teams/users)
+- name: Schedule the gateway resource sync
+  containers.podman.podman_container:
+    name: automation-hub-init
+    image: '{{ hub_image }}'
+    command: >-
+      pulpcore-manager task-scheduler --id dab_sync --interval 15
+      --path galaxy_ng.app.tasks.resource_sync.run --force
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _hub_env }}'
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_common_volumes }}'
+  changed_when: true

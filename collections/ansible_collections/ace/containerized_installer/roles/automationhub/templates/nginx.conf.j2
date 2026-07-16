@@ -1,0 +1,51 @@
+# {{ ansible_managed }}
+# Hub web: TLS mux in front of pulpcore-api and pulpcore-content.
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+events { worker_connections 1024; }
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    server_tokens off;
+    access_log /dev/stdout;
+    sendfile on;
+    client_max_body_size 1g;
+
+    # uid-agnostic temp paths (nginx:stable is Debian; /var/cache/nginx is
+    # root-owned and we run keep-id)
+    client_body_temp_path /tmp/nginx-client-body;
+    proxy_temp_path /tmp/nginx-proxy;
+    fastcgi_temp_path /tmp/nginx-fastcgi;
+    uwsgi_temp_path /tmp/nginx-uwsgi;
+    scgi_temp_path /tmp/nginx-scgi;
+
+    upstream pulp-api     { server 127.0.0.1:{{ hub_api_port }}; }
+    upstream pulp-content { server 127.0.0.1:{{ hub_content_port }}; }
+
+    server {
+        listen {{ hub_nginx_port }} ssl;
+        server_name _;
+        keepalive_timeout 65;
+
+        ssl_certificate /etc/hub-tls/hub.cert;
+        ssl_certificate_key /etc/hub-tls/hub.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+
+        location /pulp/content/ {
+            proxy_pass http://pulp-content;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Host $http_host;
+        }
+
+        location / {
+            proxy_pass http://pulp-api;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Host $http_host;
+            proxy_read_timeout 120s;
+        }
+    }
+}

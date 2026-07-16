@@ -1,0 +1,66 @@
+# {{ ansible_managed }}
+# Pulp/galaxy_ng settings — delivered as a podman secret (mounted at
+# /etc/pulp/settings.py). SECRET_KEY and the resource-server key arrive
+# as env vars from their own secrets.
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': '{{ hub_pg_database }}',
+        'USER': '{{ hub_pg_user }}',
+        'PASSWORD': '{{ hub_pg_password }}',
+        'HOST': '127.0.0.1',
+        'PORT': {{ postgresql_port }},
+        'OPTIONS': {
+            'sslmode': 'prefer',
+            'sslrootcert': '{{ ca_trust_bundle }}',
+        },
+    }
+}
+
+REDIS_URL = 'unix:///run/redis/redis.sock?db=2'
+CACHE_ENABLED = True
+
+# Single host, local file storage: stream content through the content app
+# instead of issuing storage redirects (also satisfies pulpcore's storage
+# validator without an explicit STORAGES block).
+REDIRECT_TO_OBJECT_STORAGE = False
+
+ALLOWED_HOSTS = ['*']
+CONTENT_ORIGIN = '{{ gateway_main_url }}'
+ANSIBLE_API_HOSTNAME = '{{ gateway_main_url }}'
+ANSIBLE_CONTENT_HOSTNAME = '{{ gateway_main_url }}/pulp/content'
+CSRF_TRUSTED_ORIGINS = ['{{ gateway_main_url }}']
+
+X_PULP_API_HOST = '127.0.0.1'
+X_PULP_API_PORT = {{ hub_api_port }}
+X_PULP_CONTENT_HOST = '127.0.0.1'
+X_PULP_CONTENT_PORT = {{ hub_content_port }}
+
+STATIC_ROOT = '/var/lib/operator/static/'
+
+DB_ENCRYPTION_KEY = '/etc/pulp/keys/database_fields.symmetric.key'
+ANSIBLE_CERTS_DIR = '/etc/pulp/keys/'
+
+# container registry token auth (ES256 keypair; tokens minted via the gateway)
+TOKEN_SERVER = '{{ gateway_main_url }}/token/'
+TOKEN_AUTH_DISABLED = False
+TOKEN_SIGNATURE_ALGORITHM = 'ES256'
+PUBLIC_KEY_PATH = '/etc/pulp/keys/container_auth_public_key.pem'
+PRIVATE_KEY_PATH = '/etc/pulp/keys/container_auth_private_key.pem'
+
+# Gateway integration: trust gateway-issued JWTs, use its resource server
+ENABLE_SERVICE_BACKED_SSO = False
+ANSIBLE_BASE_JWT_KEY = '{{ gateway_main_url }}'
+ANSIBLE_BASE_JWT_VALIDATE_CERT = True
+ANSIBLE_BASE_JWT_REDIRECT_TYPE = 'hub'
+ANSIBLE_BASE_ROLES_REQUIRE_VIEW = False
+GALAXY_FEATURE_FLAGS__external_authentication = True
+GALAXY_AUTHENTICATION_CLASSES = [
+    'rest_framework.authentication.SessionAuthentication',
+    'ansible_base.jwt_consumer.hub.auth.HubJWTAuth',
+    'rest_framework.authentication.TokenAuthentication',
+    'rest_framework.authentication.BasicAuthentication',
+]
+RESOURCE_SERVER__URL = '{{ gateway_main_url }}'
+RESOURCE_SERVER__VALIDATE_HTTPS = True

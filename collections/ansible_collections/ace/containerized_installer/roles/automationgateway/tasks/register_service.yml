@@ -1,6 +1,8 @@
 ---
 # Registers one service (cluster + node + service) in the gateway.
-# Expects `_svc` = {name, path, port, order}; name doubles as type/slug.
+# Expects `_svc` = {name, path, port, order, slug?}; name is the cluster and
+# service-type name, slug the api_slug (defaults to name — hub's slug is
+# galaxy, matching the platform convention).
 
 - name: 'Look up the {{ _svc.name }} service type'
   ansible.builtin.uri:
@@ -69,7 +71,7 @@
 
 - name: 'Look up the {{ _svc.name }} service'
   ansible.builtin.uri:
-    url: '{{ _gateway_api }}/services/?api_slug={{ _svc.name }}'
+    url: '{{ _gateway_api }}/services/?api_slug={{ _svc.slug | default(_svc.name) }}'
     validate_certs: false
     user: '{{ admin_user }}'
     password: '{{ admin_password }}'
@@ -88,7 +90,7 @@
     body:
       name: '{{ _svc.name | capitalize }} API'
       description: '{{ _svc.name }} behind the gateway'
-      api_slug: '{{ _svc.name }}'
+      api_slug: '{{ _svc.slug | default(_svc.name) }}'
       http_port: '{{ _http_port_id | int }}'
       service_cluster: '{{ _cluster_id | int }}'
       is_service_https: true

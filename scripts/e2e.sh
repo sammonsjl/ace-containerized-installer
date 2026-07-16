@@ -25,6 +25,9 @@ step "Controller through the gateway (/api/controller/v2/ping/)"
 step "EDA through the gateway (/api/eda/v1/status/)"
 "${CURL[@]}" "${BASE}/api/eda/v1/status/" | jq -r '.status // "FAIL"'
 
+step "Hub through the gateway (/api/galaxy/pulp/api/v3/status/)"
+"${CURL[@]}" "${BASE}/api/galaxy/pulp/api/v3/status/" | jq -r 'if .database_connection.connected then "good" else "FAIL" end'
+
 step "Launch Demo Job Template through the gateway"
 JT=$("${CURL[@]}" "${BASE}/api/controller/v2/job_templates/?name=Demo+Job+Template" | jq -r '.results[0].id')
 echo "job template id: ${JT}"

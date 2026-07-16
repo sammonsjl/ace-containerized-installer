@@ -25,6 +25,8 @@
     - receptor/etc
     - eda/etc
     - eda/nginx/etc
+    - hub/etc
+    - hub/nginx/etc
 
 # Containers log to journald (containers.conf); without this group,
 # journalctl --user shows nothing and debugging is blind. Bundle does the same.

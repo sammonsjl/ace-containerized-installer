@@ -1,0 +1,19 @@
+---
+- name: Create the hub database user
+  community.postgresql.postgresql_user:
+    login_host: 127.0.0.1
+    login_port: '{{ postgresql_port }}'
+    login_user: '{{ postgresql_admin_user }}'
+    login_password: '{{ postgresql_admin_password }}'
+    login_db: postgres
+    name: '{{ hub_pg_user }}'
+    password: '{{ hub_pg_password }}'
+
+- name: Create the hub database
+  community.postgresql.postgresql_db:
+    login_host: 127.0.0.1
+    login_port: '{{ postgresql_port }}'
+    login_user: '{{ postgresql_admin_user }}'
+    login_password: '{{ postgresql_admin_password }}'
+    name: '{{ hub_pg_database }}'
+    owner: '{{ hub_pg_user }}'

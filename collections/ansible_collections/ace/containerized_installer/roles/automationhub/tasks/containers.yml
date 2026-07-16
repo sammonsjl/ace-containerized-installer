@@ -1,0 +1,81 @@
+---
+- name: Create the automation-hub-api container
+  containers.podman.podman_container:
+    name: automation-hub-api
+    image: '{{ hub_image }}'
+    state: created
+    command: >-
+      pulpcore-api --name pulp-api --bind 127.0.0.1:{{ hub_api_port }}
+      --workers {{ hub_api_workers }}
+      --access-logfile - --error-logfile /dev/stdout
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _hub_env }}'
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_api_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-hub-api
+
+- name: Create the automation-hub-content container
+  containers.podman.podman_container:
+    name: automation-hub-content
+    image: '{{ hub_image }}'
+    state: created
+    command: >-
+      pulpcore-content --name pulp-content --bind 127.0.0.1:{{ hub_content_port }}
+      --workers {{ hub_content_workers }}
+      --access-logfile - --error-logfile /dev/stdout
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _hub_env }}'
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_common_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-hub-content
+
+- name: Create the automation-hub-worker container
+  containers.podman.podman_container:
+    name: automation-hub-worker-1
+    image: '{{ hub_image }}'
+    state: created
+    command: pulpcore-worker
+    workdir: /var/lib/pulp
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _hub_env }}'
+    secrets: '{{ _hub_secrets }}'
+    volume: '{{ _hub_common_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-hub-worker-1
+
+- name: Create the automation-hub-web container
+  containers.podman.podman_container:
+    name: automation-hub-web
+    image: '{{ hub_web_image }}'
+    state: created
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ common_env }}'
+    volume: '{{ _hub_web_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-hub-web

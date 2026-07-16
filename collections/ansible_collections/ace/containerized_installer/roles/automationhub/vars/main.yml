@@ -1,0 +1,34 @@
+---
+# Hub = galaxy_ng on pulpcore. Settings.py travels as a podman secret
+# (bundle pattern); redis is the shared unix socket, db 2.
+
+_hub_env: >-
+  {{ common_env | combine({
+    'PULP_SETTINGS': '/etc/pulp/settings.py',
+    'DJANGO_SETTINGS_MODULE': 'pulpcore.app.settings',
+    'HOME': '/var/lib/pulp',
+    'REQUESTS_CA_BUNDLE': ca_trust_bundle,
+  }) }}
+
+_hub_secrets:
+  - 'hub_settings,type=mount,target=/etc/pulp/settings.py'
+  - 'hub_database_fields,type=mount,target=/etc/pulp/keys/database_fields.symmetric.key'
+  - 'hub_secret_key,type=env,target=PULP_SECRET_KEY'
+  - 'galaxy_resource_server,type=env,target=PULP_RESOURCE_SERVER__SECRET_KEY'
+
+_hub_common_volumes:
+  - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'
+  - 'hub_data:/var/lib/pulp:U'
+  - 'redis_run:/run/redis'
+
+# container-registry token signing keypair (ES256)
+_hub_api_volumes: >-
+  {{ _hub_common_volumes + [
+    ace_dir ~ '/hub/etc/container_auth_private_key.pem:/etc/pulp/keys/container_auth_private_key.pem:ro,z',
+    ace_dir ~ '/hub/etc/container_auth_public_key.pem:/etc/pulp/keys/container_auth_public_key.pem:ro,z',
+  ] }}
+
+_hub_web_volumes:
+  - '{{ ace_dir }}/hub/nginx/etc/nginx.conf:/etc/nginx/nginx.conf:ro,z'
+  - '{{ ace_dir }}/hub/etc/hub.cert:/etc/hub-tls/hub.cert:ro,z'
+  - '{{ ace_dir }}/hub/etc/hub.key:/etc/hub-tls/hub.key:ro,z'
