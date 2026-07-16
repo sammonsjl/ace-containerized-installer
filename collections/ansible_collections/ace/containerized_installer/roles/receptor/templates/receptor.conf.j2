@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+# Single-node receptor: local-only control socket, no TCP listener, no mesh
+# TLS, no work signing. (The 2-VM variant adds tcp-listener/tcp-peer with the
+# mesh CA and work-signing keys.)
+---
+- node:
+    id: {{ ace_hostname }}
+    datadir: /var/lib/receptor
+
+- log-level:
+    level: info
+
+- control-service:
+    service: control
+    filename: /run/receptor/receptor.sock
+    permissions: '0660'
+
+- work-command:
+    worktype: local
+    command: ansible-runner
+    params: worker
+    allowruntimeparams: true

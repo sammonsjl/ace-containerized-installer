@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+# Gateway override settings — loaded on top of jewel's defaults.
+# DB and redis connections arrive via environment (DATABASE_*, REDIS_URL,
+# REDIS_MODE), same split the installer uses.
+
+ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    'https://{{ ace_hostname }}',
+    'https://{{ ace_ip }}',
+    'https://{{ ace_hostname }}:{{ gateway_nginx_port }}',
+    'https://{{ ace_ip }}:{{ gateway_nginx_port }}',
+]
+
+FRONT_END_URL = '{{ gateway_main_url }}'
+
+# Envoy control plane (the proxy pulls its listeners/clusters from here)
+ENVOY_HOSTNAME = '{{ ace_hostname }}'
+GRPC_SERVER_PORT = {{ gateway_grpc_port }}
+GRPC_SERVER_PROCESSES = {{ gateway_grpc_processes }}

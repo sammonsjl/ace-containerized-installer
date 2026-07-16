@@ -1,0 +1,127 @@
+---
+# One-shot init containers with the settings mounts (no service volumes),
+# mirroring the installer's chain.
+- name: Run controller database migrations
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: awx-manage migrate --noinput
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _controller_env }}'
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  register: _awx_migrate
+  retries: 3
+  delay: 20
+  until: _awx_migrate is not failed
+  changed_when: true
+
+- name: Register default execution environments
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: awx-manage register_default_execution_environments
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _controller_env }}'
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  changed_when: true
+
+- name: Provision the controller instance
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: >-
+      awx-manage provision_instance
+      --hostname={{ ace_hostname }} --node_type=hybrid
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _controller_env }}'
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  changed_when: true
+
+- name: Register instance queues
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: >-
+      awx-manage register_queue
+      --queuename={{ item }} --hostnames={{ ace_hostname }}
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _controller_env }}'
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  loop:
+    - default
+    - controlplane
+  changed_when: true
+
+- name: Create the controller admin user
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: >-
+      awx-manage createsuperuser
+      --username={{ admin_user }} --email={{ admin_email }} --noinput
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: "{{ _controller_env | combine({'ANSIBLE_REVERSE_RESOURCE_SYNC': 'false'}) }}"
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  register: _awx_superuser
+  failed_when:
+    - _awx_superuser is failed
+    - "'already taken' not in (_awx_superuser.msg | default('') ~ _awx_superuser.stderr | default(''))"
+  changed_when: "'Superuser created successfully' in _awx_superuser.stdout | default('')"
+
+- name: Set the controller admin password
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: >-
+      awx-manage update_password
+      --username={{ admin_user }} --password={{ admin_password }}
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _controller_env }}'
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  changed_when: true
+  no_log: true
+
+- name: Create preload data (Demo Job Template)
+  containers.podman.podman_container:
+    name: automation-controller-init
+    image: '{{ controller_image }}'
+    command: awx-manage create_preload_data
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: "{{ _controller_env | combine({'ANSIBLE_REVERSE_RESOURCE_SYNC': 'false'}) }}"
+    secrets: '{{ _controller_secrets }}'
+    volume: '{{ _controller_common_volumes }}'
+  changed_when: true

@@ -1,0 +1,4 @@
+---
+gateway_pg_database: gateway
+gateway_pg_user: gateway
+gateway_grpc_processes: 2

@@ -1,0 +1,74 @@
+---
+# One-shot init containers, exactly like the installer: rm + attach, retried.
+- name: Run gateway database migrations
+  containers.podman.podman_container:
+    name: automation-gateway-init
+    image: '{{ gateway_image }}'
+    command: aap-gateway-manage migrate --noinput
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_init_volumes }}'
+  register: _gateway_migrate
+  retries: 3
+  delay: 20
+  until: _gateway_migrate is not failed
+  changed_when: "'No migrations to apply' not in _gateway_migrate.stdout | default('')"
+
+- name: Create the gateway admin user
+  containers.podman.podman_container:
+    name: automation-gateway-init
+    image: '{{ gateway_image }}'
+    command: >-
+      aap-gateway-manage createsuperuser
+      --username={{ admin_user }} --email={{ admin_email }} --noinput
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_init_volumes }}'
+  register: _gateway_superuser
+  failed_when:
+    - _gateway_superuser is failed
+    - "'already taken' not in (_gateway_superuser.msg | default('') ~ _gateway_superuser.stderr | default(''))"
+  changed_when: "'Superuser created successfully' in _gateway_superuser.stdout | default('')"
+
+- name: Set the gateway admin password
+  containers.podman.podman_container:
+    name: automation-gateway-init
+    image: '{{ gateway_image }}'
+    command: >-
+      aap-gateway-manage update_password
+      --username={{ admin_user }} --password={{ admin_password }}
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_init_volumes }}'
+  changed_when: true
+  no_log: true
+
+- name: Initialize the gateway authenticators
+  containers.podman.podman_container:
+    name: automation-gateway-init
+    image: '{{ gateway_image }}'
+    command: aap-gateway-manage authenticators --initialize
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_init_volumes }}'
+  changed_when: true

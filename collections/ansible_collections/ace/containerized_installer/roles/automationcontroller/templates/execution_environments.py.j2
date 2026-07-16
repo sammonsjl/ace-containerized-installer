@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Consumed by `awx-manage register_default_execution_environments`.
+CONTROL_PLANE_EXECUTION_ENVIRONMENT = '{{ ee_image }}'
+DEFAULT_EXECUTION_ENVIRONMENTS = [
+    {'name': 'ACE EE (latest)', 'image': '{{ ee_image }}'},
+]

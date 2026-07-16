@@ -1,0 +1,72 @@
+# {{ ansible_managed }}
+# Envoy bootstrap: no static listeners. Listeners and clusters are fetched
+# from the gateway's xDS REST endpoints (/v3/discovery:*) every few seconds —
+# the gateway programs its own front door (port {{ envoy_https_port }}).
+node:
+  id: {{ ace_hostname }}
+  cluster: gateway
+
+dynamic_resources:
+  lds_config:
+    resource_api_version: V3
+    api_config_source:
+      api_type: REST
+      transport_api_version: V3
+      cluster_names: [gateway-control-plane-rest]
+      refresh_delay: 5s
+  cds_config:
+    resource_api_version: V3
+    api_config_source:
+      api_type: REST
+      transport_api_version: V3
+      cluster_names: [gateway-control-plane-rest]
+      refresh_delay: 5s
+
+static_resources:
+  clusters:
+    # xDS source: the gateway API behind its own nginx
+    - name: gateway-control-plane-rest
+      type: STRICT_DNS
+      connect_timeout: 5s
+      load_assignment:
+        cluster_name: gateway-control-plane-rest
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: {{ gateway_nginx_port }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/tls/ca.cert
+
+    # gRPC control plane (ext_authz / route auth), HTTP/2
+    - name: gateway_control_plane
+      type: STRICT_DNS
+      connect_timeout: 5s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: gateway_control_plane
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: {{ gateway_grpc_port }}
+
+admin:
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901

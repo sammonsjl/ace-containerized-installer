@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+[uwsgi]
+; larger than the 4kB default to accommodate fat auth headers (SSO)
+buffer-size = 10240
+socket = 127.0.0.1:{{ gateway_uwsgi_port }}
+processes = {{ ansible_processor_vcpus * 2 + 1 }}
+master = true
+vacuum = true
+no-orphans = true
+lazy-apps = true
+enable-threads = true
+manage-script-name = true
+
+harakiri = 60
+harakiri-graceful-timeout = 5
+harakiri-graceful-signal = 6
+py-call-osafterfork = true
+
+mount = /=aap_gateway_api.wsgi:application

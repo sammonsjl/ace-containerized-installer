@@ -1,0 +1,19 @@
+---
+- name: Template gateway settings and service configs
+  ansible.builtin.template:
+    src: '{{ item.src }}'
+    dest: '{{ ace_dir }}/gateway/{{ item.dest }}'
+    mode: '0640'
+  loop:
+    - { src: settings.py.j2, dest: etc/settings.py }
+    - { src: uwsgi.ini.j2, dest: etc/uwsgi.ini }
+    - { src: supervisord.conf.j2, dest: etc/supervisord.conf }
+    - { src: nginx.conf.j2, dest: nginx/etc/nginx.conf }
+  notify: Restart automation-gateway
+
+- name: Template the envoy configuration
+  ansible.builtin.template:
+    src: envoy.yaml.j2
+    dest: '{{ ace_dir }}/gatewayproxy/etc/envoy.yaml'
+    mode: '0640'
+  notify: Restart automation-gateway-proxy

@@ -1,0 +1,14 @@
+---
+- name: Restart automation-gateway
+  ansible.builtin.systemd:
+    name: automation-gateway
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-gateway-proxy
+  ansible.builtin.systemd:
+    name: automation-gateway-proxy
+    scope: user
+    daemon_reload: true
+    state: restarted

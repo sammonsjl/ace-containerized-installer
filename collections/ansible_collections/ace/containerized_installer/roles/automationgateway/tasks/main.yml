@@ -1,2 +1,18 @@
 ---
-# stub — implemented in a later milestone
+- name: Create the gateway database and user
+  ansible.builtin.import_tasks: postgresql.yml
+
+- name: Create gateway podman secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Template gateway configuration
+  ansible.builtin.import_tasks: config.yml
+
+- name: Run gateway init (migrate, superuser, authenticators)
+  ansible.builtin.import_tasks: init.yml
+
+- name: Create the gateway containers
+  ansible.builtin.import_tasks: containers.yml
+
+- name: Start the gateway services
+  ansible.builtin.import_tasks: systemd.yml

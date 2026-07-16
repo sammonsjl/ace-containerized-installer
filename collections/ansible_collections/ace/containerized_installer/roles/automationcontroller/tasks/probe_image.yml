@@ -1,0 +1,17 @@
+---
+# awx:devel is a moving tag — fail loudly here if the launch contract drifted.
+- name: Probe the controller image
+  ansible.builtin.command: >-
+    podman run --rm --entrypoint "" {{ controller_image }} bash -c
+    "ls /usr/bin/launch_awx_web.sh /usr/bin/launch_awx_rsyslog.sh
+        /etc/supervisord_web.conf /etc/supervisord_task.conf
+        /etc/supervisord_rsyslog.conf /usr/bin/awx-manage"
+  register: _probe
+  changed_when: false
+
+- name: Assert the launch contract holds
+  ansible.builtin.assert:
+    that: _probe.rc == 0
+    fail_msg: >-
+      {{ controller_image }} no longer ships the expected launch scripts or
+      supervisord configs — inspect the image and adapt the controller role.

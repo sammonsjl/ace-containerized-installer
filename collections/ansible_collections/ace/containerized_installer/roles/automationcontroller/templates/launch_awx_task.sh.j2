@@ -1,0 +1,10 @@
+#!/bin/bash -l
+# {{ ansible_managed }}
+# The image's own launch_awx_task.sh runs provision_instance, which our init
+# chain already handled — so wait for migrations, then run the supervisor.
+# (The -l login shell activates the awx venv.)
+until awx-manage migrate --check --noinput >/dev/null 2>&1; do
+    echo 'waiting for database migrations...'
+    sleep 5
+done
+exec supervisord -c /etc/supervisord_task.conf

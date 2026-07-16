@@ -1,0 +1,30 @@
+---
+- name: Template controller conf.d settings
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: '{{ ace_dir }}/controller/etc/conf.d/{{ item }}'
+    mode: '0640'
+  loop:
+    - ace.py
+    - cluster_host_id.py
+    - redis.py
+    - container_groups.py
+    - execution_environments.py
+  notify:
+    - Restart automation-controller-web
+    - Restart automation-controller-task
+    - Restart automation-controller-rsyslog
+
+- name: Template controller nginx config
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: '{{ ace_dir }}/controller/etc/nginx.conf'
+    mode: '0640'
+  notify: Restart automation-controller-web
+
+- name: Template the task launch wrapper
+  ansible.builtin.template:
+    src: launch_awx_task.sh.j2
+    dest: '{{ ace_dir }}/controller/etc/launch_awx_task.sh'
+    mode: '0750'
+  notify: Restart automation-controller-task

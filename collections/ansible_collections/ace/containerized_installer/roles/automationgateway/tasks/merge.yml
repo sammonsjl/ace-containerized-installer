@@ -1,2 +1,30 @@
 ---
-# stub — implemented in a later milestone
+# Runs after the controller is healthy: merge orgs/teams/users from the
+# registered services into the gateway.
+- name: Check the controller is installed
+  ansible.builtin.stat:
+    path: '{{ ansible_user_dir }}/.config/systemd/user/automation-controller-web.service'
+  register: _controller_unit
+
+- name: Skip merge until the controller exists
+  ansible.builtin.meta: end_play
+  when: not _controller_unit.stat.exists
+
+- name: Migrate service data into the gateway
+  containers.podman.podman_container:
+    name: automation-gateway-init
+    image: '{{ gateway_image }}'
+    command: aap-gateway-manage migrate_service_data --username={{ admin_user }}
+    rm: true
+    detach: false
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_init_volumes }}'
+  register: _merge
+  retries: 3
+  delay: 20
+  until: _merge is not failed
+  changed_when: true

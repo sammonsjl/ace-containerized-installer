@@ -1,0 +1,5 @@
+---
+controller_pg_database: awx
+controller_pg_user: awx
+controller_data_dir: '{{ ace_dir }}/controller/data'
+broadcast_websocket_secret: "{{ lookup('password', secrets_dir ~ '/broadcast_secret length=48 chars=ascii_letters,digits') }}"

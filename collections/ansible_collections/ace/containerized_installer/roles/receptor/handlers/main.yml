@@ -1,0 +1,7 @@
+---
+- name: Restart receptor
+  ansible.builtin.systemd:
+    name: receptor
+    scope: user
+    daemon_reload: true
+    state: restarted

@@ -1,0 +1,21 @@
+---
+- name: Restart automation-controller-web
+  ansible.builtin.systemd:
+    name: automation-controller-web
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-controller-task
+  ansible.builtin.systemd:
+    name: automation-controller-task
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-controller-rsyslog
+  ansible.builtin.systemd:
+    name: automation-controller-rsyslog
+    scope: user
+    daemon_reload: true
+    state: restarted

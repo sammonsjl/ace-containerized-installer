@@ -1,0 +1,46 @@
+---
+- name: Create the automation-gateway container
+  containers.podman.podman_container:
+    name: automation-gateway
+    image: '{{ gateway_image }}'
+    state: created
+    command: /usr/bin/supervisord --configuration /etc/supervisord.conf
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _gateway_env }}'
+    secrets: '{{ _gateway_secrets }}'
+    volume: '{{ _gateway_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-gateway
+
+- name: Create the automation-gateway-proxy container
+  containers.podman.podman_container:
+    name: automation-gateway-proxy
+    image: '{{ envoy_image }}'
+    state: created
+    command: envoy --config-path /etc/envoy/envoy.yaml --log-path /dev/stdout
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ common_env }}'
+    volume:
+      - '{{ ace_dir }}/gatewayproxy/etc/envoy.yaml:/etc/envoy/envoy.yaml:ro,z'
+      # LDS-served listener config references the same in-container cert paths
+      # the real installer mounts, so mirror them exactly.
+      - '{{ ace_dir }}/gateway/etc/gateway.cert:/etc/ansible-automation-platform/gateway/gateway.crt:ro,z'
+      - '{{ ace_dir }}/gateway/etc/gateway.key:/etc/ansible-automation-platform/gateway/gateway.key:ro,z'
+      - '{{ ace_dir }}/tls/ca.cert:/etc/envoy/tls/ca.cert:ro,z'
+      # CDS-served upstream clusters may reference the EL trust-bundle path;
+      # the envoy image is Ubuntu-based, so fake the EL layout.
+      - '{{ ace_dir }}/tls/extracted/pem/tls-ca-bundle.pem:/etc/pki/tls/certs/ca-bundle.crt:ro,z'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-gateway-proxy

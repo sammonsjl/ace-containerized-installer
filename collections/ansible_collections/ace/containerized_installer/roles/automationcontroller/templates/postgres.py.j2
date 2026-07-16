@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': '{{ controller_pg_database }}',
+        'USER': '{{ controller_pg_user }}',
+        'PASSWORD': '{{ controller_pg_password }}',
+        'HOST': '127.0.0.1',
+        'PORT': {{ postgresql_port }},
+        'OPTIONS': {
+            'sslmode': 'prefer',
+            'sslrootcert': '{{ ca_trust_bundle }}',
+        },
+    }
+}
