@@ -7,6 +7,11 @@
   gather_facts: false
   vars:
     _units:
+      - automation-eda-web
+      - automation-eda-daphne
+      - automation-eda-api
+      - automation-eda-worker-1
+      - automation-eda-activation-worker-1
       - automation-controller-web
       - automation-controller-task
       - automation-controller-rsyslog
@@ -17,6 +22,8 @@
       - redis-unix
       - postgresql
     _volumes:
+      - eda_data
+      - eda_nginx
       - postgresql
       - redis_run
       - redis_data_unix
@@ -25,6 +32,10 @@
       - receptor_data
       - receptor_runner
     _secrets:
+      - eda_secret_key
+      - eda_admin_password
+      - eda_db_password
+      - eda_resource_server
       - gateway_secret_key
       - gateway_admin_password
       - gateway_db_password

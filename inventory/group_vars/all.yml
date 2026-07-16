@@ -14,6 +14,9 @@ gateway_image_tar: /vagrant/images/ace-gateway-arm64.tar
 
 envoy_image: docker.io/envoyproxy/envoy:v1.33.5
 controller_image: ghcr.io/ansible/awx:devel
+eda_image: quay.io/ansible/eda-server:main          # multi-arch, rebuilt daily
+eda_web_image: quay.io/ansible/eda-ui:latest        # nginx mux for gunicorn/daphne
+de_image: quay.io/ansible/ansible-rulebook:main     # decision environment (multi-arch)
 receptor_image: quay.io/ansible/receptor:latest
 ee_image: quay.io/ansible/awx-ee:latest
 postgresql_image: docker.io/library/postgres:15
@@ -30,6 +33,9 @@ controller_nginx_port: 8443       # controller nginx (ssl)
 controller_nginx_http_port: 8080
 controller_uwsgi_port: 8050       # 127.0.0.1 only
 controller_daphne_port: 8051      # 127.0.0.1 only
+eda_gunicorn_port: 8010           # 127.0.0.1 only (bundle uses 8000 — taken-adjacent here)
+eda_daphne_port: 8011             # 127.0.0.1 only
+eda_nginx_port: 8445              # eda web (ssl), behind envoy
 postgresql_port: 5432
 redis_tcp_port: 6379
 
@@ -43,6 +49,8 @@ postgresql_admin_user: postgres
 postgresql_admin_password: "{{ lookup('password', secrets_dir ~ '/pg_admin_password length=24 chars=ascii_letters,digits') }}"
 gateway_pg_password: "{{ lookup('password', secrets_dir ~ '/gateway_pg_password length=24 chars=ascii_letters,digits') }}"
 controller_pg_password: "{{ lookup('password', secrets_dir ~ '/controller_pg_password length=24 chars=ascii_letters,digits') }}"
+eda_pg_password: "{{ lookup('password', secrets_dir ~ '/eda_pg_password length=24 chars=ascii_letters,digits') }}"
+eda_secret_key: "{{ lookup('password', secrets_dir ~ '/eda_secret_key length=64 chars=ascii_letters,digits') }}"
 redis_password: "{{ lookup('password', secrets_dir ~ '/redis_password length=24 chars=ascii_letters,digits') }}"
 gateway_secret_key: "{{ lookup('password', secrets_dir ~ '/gateway_secret_key length=64 chars=ascii_letters,digits') }}"
 controller_secret_key: "{{ lookup('password', secrets_dir ~ '/controller_secret_key length=64 chars=ascii_letters,digits') }}"

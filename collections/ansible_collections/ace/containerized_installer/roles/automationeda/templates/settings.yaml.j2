@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+# EDA settings (dynaconf YAML, mounted at /etc/eda.yaml via EDA_SETTINGS_FILE).
+# DB password and resource-server key arrive as env via podman secrets.
+---
+DB_HOST: 127.0.0.1
+DB_PORT: {{ postgresql_port }}
+DB_NAME: {{ eda_pg_database }}
+DB_USER: {{ eda_pg_user }}
+PGSSLMODE: prefer
+PGSSLROOTCERT: {{ ca_trust_bundle }}
+
+SECRET_KEY_FILE: /etc/eda/SECRET_KEY
+ALLOWED_HOSTS: '@json ["*"]'
+DEBUG: false
+
+STATIC_ROOT: /var/lib/ansible-automation-platform/eda/static
+STATIC_URL: /api/eda/static/
+
+# Activations run as containers via the host's rootless podman
+DEPLOYMENT_TYPE: podman
+PODMAN_SOCKET_URL: 'unix:///run/user/{{ ansible_user_uid }}/podman/podman.sock'
+# security_opt value is bare "disable" — EDA's podman client prefixes label=
+PODMAN_EXTRA_ARGS: '@json {"security_opt": ["disable"], "network_mode": "host"}'
+PODMAN_MOUNTS: '@json [{"source": "{{ ace_dir }}/tls/extracted", "target": "/etc/pki/ca-trust/extracted", "type": "bind", "relabel": "z"}]'
+
+# Postgres-backed dispatcherd queues (single node)
+RULEBOOK_QUEUE_NAME: 'eda-{{ ace_hostname }}'
+RULEBOOK_WORKER_QUEUES: 'eda-{{ ace_hostname }}'
+
+WEBSOCKET_BASE_URL: 'wss://127.0.0.1:{{ eda_nginx_port }}'
+WEBSOCKET_SSL_VERIFY: yes
+
+# Gateway integration: trust gateway-issued JWTs, use its resource server
+# (secret key via env EDA_RESOURCE_SERVER__SECRET_KEY)
+ENABLE_SERVICE_BACKED_SSO: false
+ANSIBLE_BASE_JWT_KEY: '{{ gateway_main_url }}'
+ANSIBLE_BASE_JWT_VALIDATE_CERT: true
+ANSIBLE_BASE_JWT_REDIRECT_TYPE: eda
+RESOURCE_SERVER__URL: '{{ gateway_main_url }}'
+RESOURCE_SERVER__VALIDATE_HTTPS: true

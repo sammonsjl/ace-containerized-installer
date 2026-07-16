@@ -1,0 +1,104 @@
+---
+- name: Create the automation-eda-api container
+  containers.podman.podman_container:
+    name: automation-eda-api
+    image: '{{ eda_image }}'
+    state: created
+    command: >-
+      gunicorn --bind 127.0.0.1:{{ eda_gunicorn_port }}
+      --workers {{ eda_gunicorn_workers }}
+      aap_eda.wsgi:application --error-logfile /dev/stdout
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ _eda_env }}'
+    secrets: '{{ _eda_secrets }}'
+    volume: '{{ _eda_common_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-eda-api
+
+- name: Create the automation-eda-daphne container
+  containers.podman.podman_container:
+    name: automation-eda-daphne
+    image: '{{ eda_image }}'
+    state: created
+    command: >-
+      daphne --bind 127.0.0.1 --port {{ eda_daphne_port }}
+      aap_eda.asgi:application
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: "{{ _eda_env | combine({'EDA_WORKER_KIND': 'websocket'}) }}"
+    secrets: '{{ _eda_secrets }}'
+    volume: '{{ _eda_common_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-eda-daphne
+
+- name: Create the automation-eda-web container
+  containers.podman.podman_container:
+    name: automation-eda-web
+    image: '{{ eda_web_image }}'
+    state: created
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    env: '{{ common_env }}'
+    volume: '{{ _eda_web_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart automation-eda-web
+
+- name: Create the EDA default workers
+  containers.podman.podman_container:
+    name: 'automation-eda-worker-{{ item }}'
+    image: '{{ eda_image }}'
+    state: created
+    command: aap-eda-manage dispatcherd --worker-class DefaultWorker
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    security_opt:
+      - label=disable
+    env: '{{ _eda_worker_env }}'
+    secrets: '{{ _eda_secrets }}'
+    volume: '{{ _eda_worker_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: always
+  loop: '{{ range(1, eda_workers + 1) | list }}'
+  notify: Restart automation-eda-workers
+
+- name: Create the EDA activation workers
+  containers.podman.podman_container:
+    name: 'automation-eda-activation-worker-{{ item }}'
+    image: '{{ eda_image }}'
+    state: created
+    command: aap-eda-manage dispatcherd --worker-class ActivationWorker
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    security_opt:
+      - label=disable
+    env: '{{ _eda_worker_env }}'
+    secrets: '{{ _eda_secrets }}'
+    volume: '{{ _eda_worker_volumes }}'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: always
+  loop: '{{ range(1, eda_activation_workers + 1) | list }}'
+  notify: Restart automation-eda-workers

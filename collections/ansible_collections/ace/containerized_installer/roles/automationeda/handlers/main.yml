@@ -1,0 +1,31 @@
+---
+- name: Restart automation-eda-api
+  ansible.builtin.systemd:
+    name: automation-eda-api
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-eda-daphne
+  ansible.builtin.systemd:
+    name: automation-eda-daphne
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-eda-web
+  ansible.builtin.systemd:
+    name: automation-eda-web
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-eda-workers
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    scope: user
+    daemon_reload: true
+    state: restarted
+  loop: >-
+    {{ (range(1, eda_workers + 1) | map('regex_replace', '^', 'automation-eda-worker-') | list)
+       + (range(1, eda_activation_workers + 1) | map('regex_replace', '^', 'automation-eda-activation-worker-') | list) }}

@@ -1,0 +1,22 @@
+---
+- name: Enable and start the EDA units
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop: >-
+    {{ ['automation-eda-api', 'automation-eda-daphne', 'automation-eda-web']
+       + (range(1, eda_workers + 1) | map('regex_replace', '^', 'automation-eda-worker-') | list)
+       + (range(1, eda_activation_workers + 1) | map('regex_replace', '^', 'automation-eda-activation-worker-') | list) }}
+
+- name: Wait for the EDA API to answer
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ eda_nginx_port }}/api/eda/v1/status/'
+    validate_certs: false
+    status_code: 200
+  register: _eda_ping
+  until: _eda_ping.status == 200
+  retries: 30
+  delay: 10

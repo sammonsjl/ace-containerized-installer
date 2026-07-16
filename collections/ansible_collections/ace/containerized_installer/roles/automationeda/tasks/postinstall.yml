@@ -1,0 +1,49 @@
+---
+# Register the default decision environment (the bundle does this with its
+# eda_decision_environment module — same API, spoken directly).
+
+# Envoy only routes to EDA after its health checks pass (3 x 10s).
+- name: Wait for EDA through the gateway
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ envoy_https_port }}/api/eda/v1/status/'
+    validate_certs: false
+    status_code: 200
+  register: _eda_gw
+  until: _eda_gw.status == 200
+  retries: 18
+  delay: 10
+
+- name: Look up the default organization
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ envoy_https_port }}/api/eda/v1/organizations/?name=Default'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _eda_org
+
+- name: Look up the default decision environment
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ envoy_https_port }}/api/eda/v1/decision-environments/?name=ACE%20Decision%20Environment'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _de_q
+
+- name: Register the default decision environment
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ envoy_https_port }}/api/eda/v1/decision-environments/'
+    validate_certs: false
+    method: POST
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: ACE Decision Environment
+      description: Default decision environment (upstream ansible-rulebook)
+      image_url: '{{ de_image }}'
+      organization_id: '{{ _eda_org.json.results[0].id | int }}'
+    status_code: 201
+  when: _de_q.json.count == 0

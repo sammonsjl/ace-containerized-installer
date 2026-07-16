@@ -1,0 +1,36 @@
+---
+# Generates `{{ _component }}_resource_server` (once) via the gateway's
+# generate_service_secret command.
+- name: 'Check for an existing {{ _component }} resource-server secret'
+  containers.podman.podman_secret_info:
+    name: '{{ _component }}_resource_server'
+  register: _rs_secret
+  failed_when: false
+
+- name: 'Generate and store the {{ _component }} service secret'
+  when: _rs_secret.secrets | default([]) | length == 0
+  block:
+    - name: 'Generate the {{ _component }} service secret'
+      containers.podman.podman_container:
+        name: automation-gateway-init
+        image: '{{ gateway_image }}'
+        command: 'aap-gateway-manage generate_service_secret {{ _component }}'
+        rm: true
+        detach: false
+        network: host
+        user: '{{ ansible_user_uid }}'
+        userns: keep-id
+        env: '{{ _gateway_env }}'
+        secrets: '{{ _gateway_secrets }}'
+        volume: '{{ _gateway_init_volumes }}'
+      register: _svc_secret_raw
+      no_log: true
+
+    # jewel prints the bare key as the last stdout line (warnings precede it)
+    - name: 'Store the {{ _component }} resource-server secret'
+      containers.podman.podman_secret:
+        name: '{{ _component }}_resource_server'
+        data: >-
+          {{ _svc_secret_raw.stdout_lines | select('match', '.+') | list | last | trim }}
+        skip_existing: true
+      no_log: true

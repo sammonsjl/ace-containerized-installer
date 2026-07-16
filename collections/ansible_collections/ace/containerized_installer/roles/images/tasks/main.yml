@@ -15,6 +15,9 @@
   loop:
     - '{{ envoy_image }}'
     - '{{ controller_image }}'
+    - '{{ eda_image }}'
+    - '{{ eda_web_image }}'
+    - '{{ de_image }}'
     - '{{ receptor_image }}'
     - '{{ ee_image }}'
     - '{{ postgresql_image }}'

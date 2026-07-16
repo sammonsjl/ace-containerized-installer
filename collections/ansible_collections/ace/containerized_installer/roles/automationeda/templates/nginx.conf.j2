@@ -1,0 +1,66 @@
+# {{ ansible_managed }}
+# EDA web: TLS mux in front of gunicorn (API) and daphne (websockets).
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+events { worker_connections 1024; }
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    server_tokens off;
+    access_log /dev/stdout;
+    map $http_upgrade $connection_upgrade { default upgrade; "" close; }
+    sendfile on;
+
+    # uid-agnostic temp paths (the eda-ui image is Debian nginx; its
+    # /var/cache/nginx is root-owned and we run keep-id)
+    client_body_temp_path /tmp/nginx-client-body;
+    proxy_temp_path /tmp/nginx-proxy;
+    fastcgi_temp_path /tmp/nginx-fastcgi;
+    uwsgi_temp_path /tmp/nginx-uwsgi;
+    scgi_temp_path /tmp/nginx-scgi;
+
+    upstream gunicorn { server 127.0.0.1:{{ eda_gunicorn_port }}; }
+    upstream daphne   { server 127.0.0.1:{{ eda_daphne_port }}; }
+
+    server {
+        listen {{ eda_nginx_port }} ssl;
+        server_name _;
+        keepalive_timeout 65;
+
+        ssl_certificate /etc/eda-tls/eda.cert;
+        ssl_certificate_key /etc/eda-tls/eda.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+
+        location ^~ /api/eda/static/ {
+            alias /var/lib/ansible-automation-platform/eda/static/;
+        }
+
+        location ~ ^/api/eda/ws/ {
+            proxy_pass http://daphne;
+            proxy_http_version 1.1;
+            proxy_buffering off;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Host $http_host;
+            proxy_redirect off;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+        }
+
+        location ~ ^/api/eda {
+            proxy_pass http://gunicorn;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Host $http_host;
+            proxy_read_timeout 120s;
+        }
+
+        # standalone SPA root (the platform UI is the real front door)
+        location / {
+            root /var/lib/ansible-automation-platform/eda;
+            try_files $uri $uri/ /index.html =404;
+        }
+    }
+}

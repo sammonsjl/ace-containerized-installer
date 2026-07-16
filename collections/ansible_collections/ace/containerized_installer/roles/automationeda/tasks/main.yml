@@ -1,0 +1,24 @@
+---
+- name: Create the EDA database and user
+  ansible.builtin.import_tasks: postgresql.yml
+
+- name: Create EDA podman secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Template EDA configuration
+  ansible.builtin.import_tasks: config.yml
+
+- name: Run EDA init (migrate, initial data, superuser)
+  ansible.builtin.import_tasks: init.yml
+
+- name: Create the EDA containers
+  ansible.builtin.import_tasks: containers.yml
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the EDA services
+  ansible.builtin.import_tasks: systemd.yml
+
+- name: Register the decision environment
+  ansible.builtin.import_tasks: postinstall.yml

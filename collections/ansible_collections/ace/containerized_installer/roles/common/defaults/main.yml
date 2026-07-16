@@ -14,3 +14,4 @@ component_certs:
   - { dir: gateway/etc, name: gateway }
   - { dir: redis, name: redis-tcp }
   - { dir: controller/etc, name: controller }
+  - { dir: eda/etc, name: eda }
