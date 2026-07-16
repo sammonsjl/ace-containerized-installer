@@ -7,12 +7,15 @@ ace_ip: 192.168.56.30
 ace_dir: "{{ ansible_user_dir }}/ace"
 
 # ── Images ──────────────────────────────────────────────────────────────────
-# The gateway image is loaded from /vagrant/images/ace-gateway-arm64.tar
-# (the GHCR copy is amd64-only for now; this lab VM is aarch64).
+# gateway/hub are pulled from GHCR (multi-arch: linux/amd64 + linux/arm64) and
+# retagged to the *_image names below; if the pull fails (offline, no GHCR
+# auth), the images role falls back to loading the *_image_tar tarballs.
 gateway_image: localhost/ace-gateway:dev
 gateway_image_tar: /vagrant/images/ace-gateway-arm64.tar
+gateway_ghcr_image: ghcr.io/sammonsjl/ace-gateway:latest
 hub_image: localhost/ace-hub:dev                    # galaxy_ng on pulp/base — built in ace-images
 hub_image_tar: /vagrant/images/ace-hub-arm64.tar
+hub_ghcr_image: ghcr.io/sammonsjl/ace-hub:latest
 hub_web_image: docker.io/library/nginx:stable       # plain mux; hub UI comes from the platform UI
 
 envoy_image: docker.io/envoyproxy/envoy:v1.33.5

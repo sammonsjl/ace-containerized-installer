@@ -32,15 +32,19 @@ jewel). No Red Hat content is included. Apache-2.0.
 
 - VMware Fusion + `vagrant` + `vagrant-vmware-desktop` plugin
 - `ansible` (`brew install ansible`)
-- The ACE gateway image built locally (see
-  [ace-images](https://github.com/sammonsjl/ace-images)) — the GHCR copy is
-  amd64-only today, and Apple Silicon VMs are aarch64
+- Network access to `ghcr.io` — the installer pulls the prebuilt, multi-arch
+  (`linux/amd64` + `linux/arm64`) gateway/hub images from
+  [ace-images](https://github.com/sammonsjl/ace-images) automatically. Building
+  locally and delivering a `podman save` tarball to `images/` is only needed
+  offline or when testing a custom image build.
 
 ## Quickstart
 
 ```sh
-# 1. Deliver the gateway image (gitignored tarball, read from /vagrant in the VM)
+# 1. (offline/custom builds only) Deliver locally-built images as gitignored
+#    tarballs, read from /vagrant in the VM — skip this if ghcr.io is reachable
 podman save --format oci-archive -o images/ace-gateway-arm64.tar localhost/ace-gateway:dev
+podman save --format oci-archive -o images/ace-hub-arm64.tar localhost/ace-hub:dev
 
 # 2. Boot the VM (Rocky 9, 8 GB / 4 vCPU, 192.168.56.30)
 vagrant up

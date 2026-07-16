@@ -1,21 +1,62 @@
 ---
-- name: Check whether locally-built images are already loaded
-  containers.podman.podman_image_info:
-    name: '{{ item.image }}'
-  register: _local_image_info
-  loop:
-    - { image: '{{ gateway_image }}', tar: '{{ gateway_image_tar }}' }
-    - { image: '{{ hub_image }}', tar: '{{ hub_image_tar }}' }
-  loop_control:
-    label: '{{ item.image }}'
+- name: Prefer published multi-arch images from GHCR, fall back to local tarballs
+  block:
+    - name: Pull gateway/hub images from GHCR
+      containers.podman.podman_image:
+        name: '{{ item.ghcr }}'
+      loop:
+        - { ghcr: '{{ gateway_ghcr_image }}', local: '{{ gateway_image }}' }
+        - { ghcr: '{{ hub_ghcr_image }}', local: '{{ hub_image }}' }
+      loop_control:
+        label: '{{ item.ghcr }}'
 
-- name: Load locally-built images from delivered tarballs
-  containers.podman.podman_load:
-    input: '{{ item.item.tar }}'
-  when: item.images | length == 0
-  loop: '{{ _local_image_info.results }}'
-  loop_control:
-    label: '{{ item.item.image }}'
+    - name: Tag pulled images to the local names the rest of the collection expects
+      containers.podman.podman_tag:
+        image: '{{ item.ghcr }}'
+        tag: '{{ item.local }}'
+      loop:
+        - { ghcr: '{{ gateway_ghcr_image }}', local: '{{ gateway_image }}' }
+        - { ghcr: '{{ hub_ghcr_image }}', local: '{{ hub_image }}' }
+      loop_control:
+        label: '{{ item.local }}'
+  rescue:
+    - name: GHCR pull failed — check for locally-built images
+      containers.podman.podman_image_info:
+        name: '{{ item.image }}'
+      register: _local_image_info
+      loop:
+        - { image: '{{ gateway_image }}', tar: '{{ gateway_image_tar }}' }
+        - { image: '{{ hub_image }}', tar: '{{ hub_image_tar }}' }
+      loop_control:
+        label: '{{ item.image }}'
+
+    - name: Check for locally-built image tarballs
+      ansible.builtin.stat:
+        path: '{{ item.item.tar }}'
+      register: _local_tars
+      when: item.images | length == 0
+      loop: '{{ _local_image_info.results }}'
+      loop_control:
+        label: '{{ item.item.image }}'
+
+    - name: Assert a local tarball exists if the image isn't already loaded
+      ansible.builtin.assert:
+        that: item.skipped is defined or item.stat.exists
+        fail_msg: >-
+          GHCR pull failed for {{ item.item.item.image }} and no local tarball
+          was found at {{ item.item.item.tar }}. Either fix connectivity/auth
+          to ghcr.io, or build+podman save it locally (see README).
+      loop: '{{ _local_tars.results }}'
+      loop_control:
+        label: '{{ item.item.item.image }}'
+
+    - name: Load locally-built images from delivered tarballs
+      containers.podman.podman_load:
+        input: '{{ item.item.tar }}'
+      when: item.images | length == 0
+      loop: '{{ _local_image_info.results }}'
+      loop_control:
+        label: '{{ item.item.image }}'
 
 - name: Pull public images
   containers.podman.podman_image:
