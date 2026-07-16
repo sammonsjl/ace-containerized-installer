@@ -55,6 +55,10 @@
       ansible.builtin.import_role:
         name: ace.containerized_installer.automationeda
 
+    - name: Install the hub
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationhub
+
     - name: Merge service data into the gateway
       ansible.builtin.import_role:
         name: ace.containerized_installer.automationgateway

@@ -1,0 +1,25 @@
+---
+# ES256 keypair for container-registry token signing (bundle mechanic)
+- name: Generate the container-auth private key
+  community.crypto.openssl_privatekey:
+    path: '{{ ace_dir }}/hub/etc/container_auth_private_key.pem'
+    type: ECC
+    curve: secp256r1
+    mode: '0640'
+
+- name: Generate the container-auth public key
+  community.crypto.openssl_publickey:
+    path: '{{ ace_dir }}/hub/etc/container_auth_public_key.pem'
+    privatekey_path: '{{ ace_dir }}/hub/etc/container_auth_private_key.pem'
+    mode: '0644'
+
+- name: Template hub nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: '{{ ace_dir }}/hub/nginx/etc/nginx.conf'
+    mode: '0640'
+  notify: Restart automation-hub-web
+
+- name: Create hub volumes
+  containers.podman.podman_volume:
+    name: hub_data

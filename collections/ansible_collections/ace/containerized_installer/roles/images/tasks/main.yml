@@ -1,13 +1,21 @@
 ---
-- name: Check whether the gateway image is already loaded
+- name: Check whether locally-built images are already loaded
   containers.podman.podman_image_info:
-    name: '{{ gateway_image }}'
-  register: _gateway_image_info
+    name: '{{ item.image }}'
+  register: _local_image_info
+  loop:
+    - { image: '{{ gateway_image }}', tar: '{{ gateway_image_tar }}' }
+    - { image: '{{ hub_image }}', tar: '{{ hub_image_tar }}' }
+  loop_control:
+    label: '{{ item.image }}'
 
-- name: Load the gateway image from the delivered tarball
+- name: Load locally-built images from delivered tarballs
   containers.podman.podman_load:
-    input: '{{ gateway_image_tar }}'
-  when: _gateway_image_info.images | length == 0
+    input: '{{ item.item.tar }}'
+  when: item.images | length == 0
+  loop: '{{ _local_image_info.results }}'
+  loop_control:
+    label: '{{ item.item.image }}'
 
 - name: Pull public images
   containers.podman.podman_image:
@@ -18,6 +26,7 @@
     - '{{ eda_image }}'
     - '{{ eda_web_image }}'
     - '{{ de_image }}'
+    - '{{ hub_web_image }}'
     - '{{ receptor_image }}'
     - '{{ ee_image }}'
     - '{{ postgresql_image }}'

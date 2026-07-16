@@ -1,0 +1,28 @@
+---
+- name: Restart automation-hub-api
+  ansible.builtin.systemd:
+    name: automation-hub-api
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-hub-content
+  ansible.builtin.systemd:
+    name: automation-hub-content
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-hub-worker-1
+  ansible.builtin.systemd:
+    name: automation-hub-worker-1
+    scope: user
+    daemon_reload: true
+    state: restarted
+
+- name: Restart automation-hub-web
+  ansible.builtin.systemd:
+    name: automation-hub-web
+    scope: user
+    daemon_reload: true
+    state: restarted

@@ -1,0 +1,21 @@
+---
+- name: Create the hub database and user
+  ansible.builtin.import_tasks: postgresql.yml
+
+- name: Template hub configuration and keys
+  ansible.builtin.import_tasks: config.yml
+
+- name: Create hub podman secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Run hub init (migrate, admin password, resource sync)
+  ansible.builtin.import_tasks: init.yml
+
+- name: Create the hub containers
+  ansible.builtin.import_tasks: containers.yml
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the hub services
+  ansible.builtin.import_tasks: systemd.yml

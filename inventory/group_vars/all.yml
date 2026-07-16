@@ -11,6 +11,9 @@ ace_dir: "{{ ansible_user_dir }}/ace"
 # (the GHCR copy is amd64-only for now; this lab VM is aarch64).
 gateway_image: localhost/ace-gateway:dev
 gateway_image_tar: /vagrant/images/ace-gateway-arm64.tar
+hub_image: localhost/ace-hub:dev                    # galaxy_ng on pulp/base — built in ace-images
+hub_image_tar: /vagrant/images/ace-hub-arm64.tar
+hub_web_image: docker.io/library/nginx:stable       # plain mux; hub UI comes from the platform UI
 
 envoy_image: docker.io/envoyproxy/envoy:v1.33.5
 controller_image: ghcr.io/ansible/awx:devel
@@ -36,6 +39,9 @@ controller_daphne_port: 8051      # 127.0.0.1 only
 eda_gunicorn_port: 8010           # 127.0.0.1 only (bundle uses 8000 — taken-adjacent here)
 eda_daphne_port: 8011             # 127.0.0.1 only
 eda_nginx_port: 8445              # eda web (ssl), behind envoy
+hub_api_port: 24817               # pulpcore-api, 127.0.0.1 only
+hub_content_port: 24816           # pulpcore-content, 127.0.0.1 only
+hub_nginx_port: 8444              # hub web (ssl), behind envoy
 postgresql_port: 5432
 redis_tcp_port: 6379
 
@@ -51,6 +57,11 @@ gateway_pg_password: "{{ lookup('password', secrets_dir ~ '/gateway_pg_password 
 controller_pg_password: "{{ lookup('password', secrets_dir ~ '/controller_pg_password length=24 chars=ascii_letters,digits') }}"
 eda_pg_password: "{{ lookup('password', secrets_dir ~ '/eda_pg_password length=24 chars=ascii_letters,digits') }}"
 eda_secret_key: "{{ lookup('password', secrets_dir ~ '/eda_secret_key length=64 chars=ascii_letters,digits') }}"
+hub_pg_password: "{{ lookup('password', secrets_dir ~ '/hub_pg_password length=24 chars=ascii_letters,digits') }}"
+hub_secret_key: "{{ lookup('password', secrets_dir ~ '/hub_secret_key length=64 chars=ascii_letters,digits') }}"
+# Fernet key (urlsafe-b64 of 32 bytes) for pulp's field encryption; the
+# persisted password provides the stable 32 input bytes
+hub_database_fields_key: "{{ lookup('password', secrets_dir ~ '/hub_fernet_seed length=32 chars=ascii_letters,digits') | b64encode | replace('+', '-') | replace('/', '_') }}"
 redis_password: "{{ lookup('password', secrets_dir ~ '/redis_password length=24 chars=ascii_letters,digits') }}"
 gateway_secret_key: "{{ lookup('password', secrets_dir ~ '/gateway_secret_key length=64 chars=ascii_letters,digits') }}"
 controller_secret_key: "{{ lookup('password', secrets_dir ~ '/controller_secret_key length=64 chars=ascii_letters,digits') }}"

@@ -15,3 +15,4 @@ component_certs:
   - { dir: redis, name: redis-tcp }
   - { dir: controller/etc, name: controller }
   - { dir: eda/etc, name: eda }
+  - { dir: hub/etc, name: hub }

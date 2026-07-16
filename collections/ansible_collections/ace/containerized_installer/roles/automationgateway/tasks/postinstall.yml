@@ -76,11 +76,26 @@
   # Envoy routes are first-match in `order`: the / catch-all MUST come last.
   loop:
     - { name: controller, path: /api/controller/, port: '{{ controller_nginx_port }}', order: 1 }
+    - { name: hub, slug: galaxy, path: /api/galaxy/, port: '{{ hub_nginx_port }}', order: 2 }
     - { name: eda, path: /api/eda/, port: '{{ eda_nginx_port }}', order: 3 }
     - { name: gateway, path: /, port: '{{ gateway_nginx_port }}', order: 100 }
   loop_control:
     loop_var: _svc
     label: '{{ _svc.name }}'
+
+# Hub needs extra routed paths beyond /api/galaxy/: the container registry,
+# pulp content, registry tokens (bundle's route set, minus signing extras).
+- name: Register hub routes
+  ansible.builtin.include_tasks: register_route.yml
+  loop:
+    - { name: hub-container-registry, path: /v2/ }
+    - { name: hub-pulp, path: /pulp }
+    - { name: hub-token, path: /token }
+    - { name: hub-extensions, path: /extensions }
+    - { name: hub-static, path: /static/galaxy_ng/ }
+  loop_control:
+    loop_var: _route
+    label: '{{ _route.name }}'
 
 # With port-{{ envoy_https_port }} registered, the gateway's next LDS response
 # programs the public listener into envoy (polling every 5s).
@@ -101,10 +116,12 @@
   delay: 5
 
 # Resource-server keys let each service trust gateway-issued JWTs.
+# (hub's component name in the gateway is `galaxy`.)
 - name: Generate service secrets
   ansible.builtin.include_tasks: service_key.yml
   loop:
     - controller
     - eda
+    - galaxy
   loop_control:
     loop_var: _component

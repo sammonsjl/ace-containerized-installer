@@ -1,0 +1,5 @@
+---
+hub_pg_database: pulp
+hub_pg_user: pulp
+hub_api_workers: 2
+hub_content_workers: 2
