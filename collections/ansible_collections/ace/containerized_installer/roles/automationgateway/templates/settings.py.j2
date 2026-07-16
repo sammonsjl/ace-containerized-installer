@@ -13,7 +13,9 @@ CSRF_TRUSTED_ORIGINS = [
 
 FRONT_END_URL = '{{ gateway_main_url }}'
 
-# Envoy control plane (the proxy pulls its listeners/clusters from here)
+# Envoy control plane (the proxy pulls its listeners/clusters from here).
+# GRPC_SERVER_PORT must be a *string*: jewel's start_grpc_server concatenates
+# it into the bind address.
 ENVOY_HOSTNAME = '{{ ace_hostname }}'
-GRPC_SERVER_PORT = {{ gateway_grpc_port }}
+GRPC_SERVER_PORT = '{{ gateway_grpc_port }}'
 GRPC_SERVER_PROCESSES = {{ gateway_grpc_processes }}

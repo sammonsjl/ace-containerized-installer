@@ -2,11 +2,16 @@
 # Service registration over the gateway REST API. The RH installer drives the
 # same API through its ansible.platform modules; those aren't published
 # upstream, so we speak REST directly with GET-then-POST idempotency.
+#
+# validate_certs is off for these loopback calls: ansible's urls.py cannot
+# build a verified SSL context on EL9 at all (ASN1 NOT_ENOUGH_DATA against any
+# https host — its trust loader chokes on EL9's TRUSTED CERTIFICATE bundles).
+# The wire is still TLS; curl/python on the host verify fine via system trust.
 
 - name: Wait for the gateway API
   ansible.builtin.uri:
     url: '{{ _gateway_api }}/ping/'
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
+    validate_certs: false
     status_code: 200
   register: _ping
   until: _ping.status == 200
@@ -16,29 +21,30 @@
 - name: Set the gateway proxy URL setting
   ansible.builtin.uri:
     url: '{{ _gateway_api }}/settings/all/'
-    method: PATCH
+    validate_certs: false
+    method: PUT
     user: '{{ admin_user }}'
     password: '{{ admin_password }}'
     force_basic_auth: true
     body_format: json
     body:
-      gateway_proxy_url: 'https://{{ ace_hostname }}:{{ envoy_https_port }}'
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
+      gateway_proxy_url: '{{ gateway_main_url }}'
     status_code: [200, 202]
   changed_when: true
 
 - name: Look up the API http port
   ansible.builtin.uri:
     url: '{{ _gateway_api }}/http_ports/?name=port-{{ envoy_https_port }}'
+    validate_certs: false
     user: '{{ admin_user }}'
     password: '{{ admin_password }}'
     force_basic_auth: true
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
   register: _http_port_q
 
 - name: Create the API http port
   ansible.builtin.uri:
     url: '{{ _gateway_api }}/http_ports/'
+    validate_certs: false
     method: POST
     user: '{{ admin_user }}'
     password: '{{ admin_password }}'
@@ -49,7 +55,6 @@
       number: '{{ envoy_https_port | int }}'
       use_https: true
       is_api_port: true
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
     status_code: 201
   when: _http_port_q.json.count == 0
   register: _http_port_c
@@ -60,92 +65,21 @@
       {{ (_http_port_q.json.count > 0)
          | ternary(_http_port_q.json.results[0].id | default(0), _http_port_c.json.id | default(0)) }}
 
-- name: Look up the controller service cluster
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/service_clusters/?name=controller'
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-  register: _cluster_q
-
-- name: Create the controller service cluster
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/service_clusters/'
-    method: POST
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    body_format: json
-    body:
-      name: controller
-      service_type: controller
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-    status_code: 201
-  when: _cluster_q.json.count == 0
-  register: _cluster_c
-
-- name: Remember the service cluster id
-  ansible.builtin.set_fact:
-    _cluster_id: >-
-      {{ (_cluster_q.json.count > 0)
-         | ternary(_cluster_q.json.results[0].id | default(0), _cluster_c.json.id | default(0)) }}
-
-- name: Look up the controller service node
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/service_nodes/?name=controller-{{ ace_hostname }}'
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-  register: _node_q
-
-- name: Create the controller service node
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/service_nodes/'
-    method: POST
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    body_format: json
-    body:
-      name: 'controller-{{ ace_hostname }}'
-      address: 127.0.0.1
-      service_cluster: '{{ _cluster_id | int }}'
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-    status_code: 201
-  when: _node_q.json.count == 0
-
-- name: Look up the controller service
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/services/?api_slug=controller'
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-  register: _service_q
-
-- name: Create the controller service
-  ansible.builtin.uri:
-    url: '{{ _gateway_api }}/services/'
-    method: POST
-    user: '{{ admin_user }}'
-    password: '{{ admin_password }}'
-    force_basic_auth: true
-    body_format: json
-    body:
-      name: 'Controller API'
-      description: 'AWX controller behind the gateway'
-      api_slug: controller
-      http_port: '{{ _http_port_id | int }}'
-      service_cluster: '{{ _cluster_id | int }}'
-      is_service_https: true
-      service_path: /api/controller/
-      service_port: '{{ controller_nginx_port | int }}'
-      order: 1
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
-    status_code: 201
-  when: _service_q.json.count == 0
+# The gateway itself registers first (order 0) so envoy routes /api/gateway/
+# and the UI to its nginx; then the controller.
+- name: Register services
+  ansible.builtin.include_tasks: register_service.yml
+  # path semantics: envoy matches the service's public gateway_path and
+  # rewrites it to service_path. The gateway serves UI + API from / — so its
+  # service_path is /, a pure pass-through. The controller serves
+  # /api/controller/ natively (OPTIONAL_API_URLPATTERN_PREFIX).
+  # Envoy routes are first-match in `order`: the / catch-all MUST come last.
+  loop:
+    - { name: controller, path: /api/controller/, port: '{{ controller_nginx_port }}', order: 1 }
+    - { name: gateway, path: /, port: '{{ gateway_nginx_port }}', order: 100 }
+  loop_control:
+    loop_var: _svc
+    label: '{{ _svc.name }}'
 
 # With port-{{ envoy_https_port }} registered, the gateway's next LDS response
 # programs the public listener into envoy (polling every 5s).
@@ -158,11 +92,11 @@
 - name: Verify the gateway answers through envoy
   ansible.builtin.uri:
     url: 'https://127.0.0.1:{{ envoy_https_port }}/api/gateway/v1/ping/'
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
+    validate_certs: false
     status_code: 200
   register: _envoy_ping
   until: _envoy_ping.status == 200
-  retries: 12
+  retries: 24
   delay: 5
 
 # The resource-server key lets the controller trust gateway-issued JWTs.
@@ -170,9 +104,10 @@
   containers.podman.podman_secret_info:
     name: controller_resource_server
   register: _rs_secret
+  failed_when: false
 
 - name: Generate and store the controller service secret
-  when: _rs_secret.secrets | length == 0
+  when: _rs_secret.secrets | default([]) | length == 0
   block:
     - name: Generate the controller service secret
       containers.podman.podman_container:
@@ -190,15 +125,11 @@
       register: _svc_secret_raw
       no_log: true
 
-    # Output is either a bare key or a "RESOURCE_SERVER = {...}" line.
+    # jewel prints the bare key as the last stdout line (warnings precede it)
     - name: Parse the service secret
       ansible.builtin.set_fact:
         _controller_service_key: >-
-          {{ (_line.startswith('RESOURCE_SERVER'))
-             | ternary((_line | regex_replace('^RESOURCE_SERVER\s*=\s*', '') | from_yaml).SECRET_KEY | default(_line),
-                       _line) }}
-      vars:
-        _line: '{{ _svc_secret_raw.stdout | trim | split("\n") | last | trim }}'
+          {{ _svc_secret_raw.stdout_lines | select('match', '.+') | list | last | trim }}
       no_log: true
 
     - name: Store the controller resource-server secret

@@ -31,6 +31,7 @@
       {{ common_env | combine({
         'RECEPTORCTL_SOCKET': '/run/receptor/receptor.sock',
         'CONTAINER_HOST': 'unix://run/user/' ~ ansible_user_uid ~ '/podman/podman.sock',
+        'HOME': '/home/runner',
       }) }}
     volume:
       - '{{ ace_dir }}/receptor/etc/receptor.conf:/etc/receptor/receptor.conf:ro'
@@ -38,6 +39,8 @@
       - 'receptor_data:/var/lib/receptor:U'
       - 'receptor_runner:/home/runner:U'
       - '/usr/bin/podman:/usr/bin/podman:ro'
+      # the EL9 podman binary needs libsubid, absent from the receptor image
+      - '/usr/lib64/libsubid.so.3:/usr/lib64/libsubid.so.3:ro'
       - '/run/user/{{ ansible_user_uid }}/podman/podman.sock:/run/user/{{ ansible_user_uid }}/podman/podman.sock'
       # Job dirs bind at IDENTICAL host/container paths: ansible-runner in this
       # container starts EE containers through the HOST podman socket, so every

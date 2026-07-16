@@ -14,7 +14,7 @@
 - name: Wait for the controller API to answer
   ansible.builtin.uri:
     url: 'https://127.0.0.1:{{ controller_nginx_port }}/api/v2/ping/'
-    ca_path: '{{ ace_dir }}/tls/ca.cert'
+    validate_certs: false
     status_code: 200
   register: _controller_ping
   until: _controller_ping.status == 200

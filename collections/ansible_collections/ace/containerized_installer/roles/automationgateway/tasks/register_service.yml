@@ -1,0 +1,99 @@
+---
+# Registers one service (cluster + node + service) in the gateway.
+# Expects `_svc` = {name, path, port, order}; name doubles as type/slug.
+
+- name: 'Look up the {{ _svc.name }} service type'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_types/?name={{ _svc.name }}'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _type_q
+
+- name: 'Look up the {{ _svc.name }} service cluster'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_clusters/?name={{ _svc.name }}'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _cluster_q
+
+- name: 'Create the {{ _svc.name }} service cluster'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_clusters/'
+    validate_certs: false
+    method: POST
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: '{{ _svc.name }}'
+      service_type: '{{ _type_q.json.results[0].id | int }}'
+    status_code: 201
+  when: _cluster_q.json.count == 0
+  register: _cluster_c
+
+- name: 'Remember the {{ _svc.name }} cluster id'
+  ansible.builtin.set_fact:
+    _cluster_id: >-
+      {{ (_cluster_q.json.count > 0)
+         | ternary(_cluster_q.json.results[0].id | default(0), _cluster_c.json.id | default(0)) }}
+
+- name: 'Look up the {{ _svc.name }} service node'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_nodes/?name={{ _svc.name }}-{{ ace_hostname }}'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _node_q
+
+- name: 'Create the {{ _svc.name }} service node'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/service_nodes/'
+    validate_certs: false
+    method: POST
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: '{{ _svc.name }}-{{ ace_hostname }}'
+      address: 127.0.0.1
+      service_cluster: '{{ _cluster_id | int }}'
+    status_code: 201
+  when: _node_q.json.count == 0
+
+- name: 'Look up the {{ _svc.name }} service'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/services/?api_slug={{ _svc.name }}'
+    validate_certs: false
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+  register: _service_q
+
+- name: 'Create the {{ _svc.name }} service'
+  ansible.builtin.uri:
+    url: '{{ _gateway_api }}/services/'
+    validate_certs: false
+    method: POST
+    user: '{{ admin_user }}'
+    password: '{{ admin_password }}'
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: '{{ _svc.name | capitalize }} API'
+      description: '{{ _svc.name }} behind the gateway'
+      api_slug: '{{ _svc.name }}'
+      http_port: '{{ _http_port_id | int }}'
+      service_cluster: '{{ _cluster_id | int }}'
+      is_service_https: true
+      service_path: '{{ _svc.path }}'
+      service_port: '{{ _svc.port | int }}'
+      order: '{{ _svc.order | int }}'
+    status_code: 201
+  when: _service_q.json.count == 0
