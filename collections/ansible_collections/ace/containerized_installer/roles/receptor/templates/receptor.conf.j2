@@ -10,6 +10,9 @@
 - log-level:
     level: info
 
+# No TCP backends on a single node — this keeps receptor running anyway.
+- local-only:
+
 - control-service:
     service: control
     filename: /run/receptor/receptor.sock

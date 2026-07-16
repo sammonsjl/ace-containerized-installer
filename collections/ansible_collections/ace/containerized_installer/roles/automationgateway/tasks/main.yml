@@ -16,3 +16,8 @@
 
 - name: Start the gateway services
   ansible.builtin.import_tasks: systemd.yml
+
+# Config changes must restart services NOW — postinstall (next) verifies the
+# live API, and a failed play never reaches end-of-play handlers.
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers

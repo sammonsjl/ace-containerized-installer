@@ -56,13 +56,25 @@
     enabled: true
     state: started
 
-# THE one privileged task: rootless envoy must bind 443/80.
+# Privileged host prep (the bundle does the same with root): rootless envoy
+# must bind 443/80, and firewalld must admit the public ports.
 - name: Allow rootless binding of ports >= 80
   ansible.posix.sysctl:
     name: net.ipv4.ip_unprivileged_port_start
     value: '80'
     sysctl_file: /etc/sysctl.d/50-ace-unprivileged-ports.conf
     state: present
+  become: true
+
+- name: Open the public envoy ports in firewalld
+  ansible.posix.firewalld:
+    port: '{{ item }}/tcp'
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - '{{ envoy_https_port }}'
+    - '{{ envoy_http_port }}'
   become: true
 
 - name: Set up the internal CA and component certificates

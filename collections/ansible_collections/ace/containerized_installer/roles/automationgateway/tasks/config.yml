@@ -17,3 +17,12 @@
     dest: '{{ ace_dir }}/gatewayproxy/etc/envoy.yaml'
     mode: '0640'
   notify: Restart automation-gateway-proxy
+
+# The LDS-served listener references this script by path inside the proxy
+# container (jewel's GATEWAY_PATH_REWRITE_SCRIPT_FILE default).
+- name: Install the envoy path-rewrite lua script
+  ansible.builtin.copy:
+    src: envoy-path-rewrite.lua
+    dest: '{{ ace_dir }}/gatewayproxy/etc/envoy-path-rewrite.lua'
+    mode: '0644'
+  notify: Restart automation-gateway-proxy

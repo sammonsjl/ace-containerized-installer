@@ -9,7 +9,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: '{{ _controller_env }}'
     secrets: '{{ _controller_secrets }}'
@@ -28,7 +28,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: '{{ _controller_env }}'
     secrets: '{{ _controller_secrets }}'
@@ -45,7 +45,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: '{{ _controller_env }}'
     secrets: '{{ _controller_secrets }}'
@@ -62,7 +62,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: '{{ _controller_env }}'
     secrets: '{{ _controller_secrets }}'
@@ -82,7 +82,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: "{{ _controller_env | combine({'ANSIBLE_REVERSE_RESOURCE_SYNC': 'false'}) }}"
     secrets: '{{ _controller_secrets }}'
@@ -103,7 +103,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: '{{ _controller_env }}'
     secrets: '{{ _controller_secrets }}'
@@ -119,7 +119,7 @@
     rm: true
     detach: false
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: "{{ _controller_env | combine({'ANSIBLE_REVERSE_RESOURCE_SYNC': 'false'}) }}"
     secrets: '{{ _controller_secrets }}'

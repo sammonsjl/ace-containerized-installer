@@ -1,7 +1,10 @@
 ---
+# REQUESTS_CA_BUNDLE: python requests in these images uses certifi, not the
+# system store — point it at the mounted EL bundle (includes the ACE CA).
 _controller_env: >-
   {{ common_env | combine({
     'DJANGO_SUPERUSER_USERNAME': admin_user,
+    'REQUESTS_CA_BUNDLE': ca_trust_bundle,
   }) }}
 
 _controller_secrets:
@@ -38,4 +41,6 @@ _controller_web_volumes:
 _controller_task_volumes:
   - '{{ ace_dir }}/controller/etc/launch_awx_task.sh:/usr/bin/launch_awx_task.sh:ro,z'
   - '/usr/bin/podman:/usr/bin/podman:ro'
+  # the EL9 podman binary needs libsubid, absent from the awx image
+  - '/usr/lib64/libsubid.so.3:/usr/lib64/libsubid.so.3:ro'
   - '/run/user/{{ ansible_user_uid }}/podman/podman.sock:/run/user/{{ ansible_user_uid }}/podman/podman.sock'

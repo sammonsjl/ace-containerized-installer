@@ -17,6 +17,7 @@ _gateway_env: >-
     'REDIS_MODE': 'standalone',
     'GATEWAY_SECRET_KEY_FILE': '/run/secrets/gateway_secret_key',
     'DJANGO_SUPERUSER_USERNAME': admin_user,
+    'REQUESTS_CA_BUNDLE': ca_trust_bundle,
   }) }}
 
 _gateway_secrets:

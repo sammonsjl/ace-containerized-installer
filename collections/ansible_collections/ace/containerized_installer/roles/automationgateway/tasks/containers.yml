@@ -30,6 +30,7 @@
     env: '{{ common_env }}'
     volume:
       - '{{ ace_dir }}/gatewayproxy/etc/envoy.yaml:/etc/envoy/envoy.yaml:ro,z'
+      - '{{ ace_dir }}/gatewayproxy/etc/envoy-path-rewrite.lua:/etc/envoy/envoy-path-rewrite.lua:ro,z'
       # LDS-served listener config references the same in-container cert paths
       # the real installer mounts, so mirror them exactly.
       - '{{ ace_dir }}/gateway/etc/gateway.cert:/etc/ansible-automation-platform/gateway/gateway.crt:ro,z'

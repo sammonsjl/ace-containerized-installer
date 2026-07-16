@@ -17,5 +17,11 @@
 - name: Create the controller containers
   ansible.builtin.import_tasks: containers.yml
 
+# Recreated containers must restart via their handlers BEFORE the plain
+# start task below — starting a live unit whose container was replaced
+# underneath it fails ("did not take the steps required").
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
 - name: Start the controller services
   ansible.builtin.import_tasks: systemd.yml

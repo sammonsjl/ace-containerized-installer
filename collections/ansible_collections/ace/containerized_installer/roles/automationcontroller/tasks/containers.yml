@@ -6,7 +6,7 @@
     state: created
     command: /usr/bin/launch_awx_rsyslog.sh
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     env: >-
       {{ _controller_env | combine({
@@ -30,7 +30,7 @@
     state: created
     command: /usr/bin/launch_awx_task.sh
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     security_opt:
       - label=disable
@@ -55,12 +55,9 @@
     state: created
     command: /usr/bin/launch_awx_web.sh
     network: host
-    user: '{{ ansible_user_uid }}'
+    user: '{{ ansible_user_uid }}:0'
     userns: keep-id
     stop_timeout: 30
-    tmpfs:
-      /run/nginx: 'rw'
-      /run/uwsgi: 'rw'
     env: >-
       {{ _controller_env | combine({
         'SUPERVISOR_CONFIG_PATH': '/etc/supervisord_web.conf',

@@ -56,5 +56,7 @@ common_env:
   OPENSSL_armcap: "0"
 
 # ── URLs ─────────────────────────────────────────────────────────────────────
-gateway_main_url: "https://{{ ace_hostname }}"
+# The IP, not the hostname: the vagrant box resolves its own hostname only to
+# IPv6 link-local, and jewel's URL validator wants something resolvable.
+gateway_main_url: "https://{{ ace_ip }}"
 ca_trust_bundle: /etc/pki/tls/certs/ca-bundle.crt
