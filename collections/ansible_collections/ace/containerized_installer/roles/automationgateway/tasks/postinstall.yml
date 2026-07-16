@@ -76,6 +76,7 @@
   # Envoy routes are first-match in `order`: the / catch-all MUST come last.
   loop:
     - { name: controller, path: /api/controller/, port: '{{ controller_nginx_port }}', order: 1 }
+    - { name: eda, path: /api/eda/, port: '{{ eda_nginx_port }}', order: 3 }
     - { name: gateway, path: /, port: '{{ gateway_nginx_port }}', order: 100 }
   loop_control:
     loop_var: _svc
@@ -99,42 +100,11 @@
   retries: 24
   delay: 5
 
-# The resource-server key lets the controller trust gateway-issued JWTs.
-- name: Check for an existing controller resource-server secret
-  containers.podman.podman_secret_info:
-    name: controller_resource_server
-  register: _rs_secret
-  failed_when: false
-
-- name: Generate and store the controller service secret
-  when: _rs_secret.secrets | default([]) | length == 0
-  block:
-    - name: Generate the controller service secret
-      containers.podman.podman_container:
-        name: automation-gateway-init
-        image: '{{ gateway_image }}'
-        command: aap-gateway-manage generate_service_secret controller
-        rm: true
-        detach: false
-        network: host
-        user: '{{ ansible_user_uid }}'
-        userns: keep-id
-        env: '{{ _gateway_env }}'
-        secrets: '{{ _gateway_secrets }}'
-        volume: '{{ _gateway_init_volumes }}'
-      register: _svc_secret_raw
-      no_log: true
-
-    # jewel prints the bare key as the last stdout line (warnings precede it)
-    - name: Parse the service secret
-      ansible.builtin.set_fact:
-        _controller_service_key: >-
-          {{ _svc_secret_raw.stdout_lines | select('match', '.+') | list | last | trim }}
-      no_log: true
-
-    - name: Store the controller resource-server secret
-      containers.podman.podman_secret:
-        name: controller_resource_server
-        data: '{{ _controller_service_key }}'
-        skip_existing: true
-      no_log: true
+# Resource-server keys let each service trust gateway-issued JWTs.
+- name: Generate service secrets
+  ansible.builtin.include_tasks: service_key.yml
+  loop:
+    - controller
+    - eda
+  loop_control:
+    loop_var: _component

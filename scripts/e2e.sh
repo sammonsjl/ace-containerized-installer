@@ -22,6 +22,9 @@ step "Registered services"
 step "Controller through the gateway (/api/controller/v2/ping/)"
 "${CURL[@]}" "${BASE}/api/controller/v2/ping/" | jq -r '.instances[0].node, .instances[0].node_type'
 
+step "EDA through the gateway (/api/eda/v1/status/)"
+"${CURL[@]}" "${BASE}/api/eda/v1/status/" | jq -r '.status // "FAIL"'
+
 step "Launch Demo Job Template through the gateway"
 JT=$("${CURL[@]}" "${BASE}/api/controller/v2/job_templates/?name=Demo+Job+Template" | jq -r '.results[0].id')
 echo "job template id: ${JT}"

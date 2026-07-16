@@ -1,0 +1,24 @@
+---
+- name: Template EDA settings
+  ansible.builtin.template:
+    src: settings.yaml.j2
+    dest: '{{ ace_dir }}/eda/etc/settings.yaml'
+    mode: '0640'
+  notify:
+    - Restart automation-eda-api
+    - Restart automation-eda-daphne
+    - Restart automation-eda-workers
+
+- name: Template EDA nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: '{{ ace_dir }}/eda/nginx/etc/nginx.conf'
+    mode: '0640'
+  notify: Restart automation-eda-web
+
+- name: Create EDA volumes
+  containers.podman.podman_volume:
+    name: '{{ item }}'
+  loop:
+    - eda_data
+    - eda_nginx

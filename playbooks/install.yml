@@ -51,6 +51,10 @@
       ansible.builtin.import_role:
         name: ace.containerized_installer.automationcontroller
 
+    - name: Install EDA
+      ansible.builtin.import_role:
+        name: ace.containerized_installer.automationeda
+
     - name: Merge service data into the gateway
       ansible.builtin.import_role:
         name: ace.containerized_installer.automationgateway

@@ -1,0 +1,46 @@
+---
+# EDA (2.7 shape): Postgres-backed dispatcherd — no redis, no scheduler.
+# Settings live in a mounted YAML (EDA_SETTINGS_FILE), secrets via podman.
+
+_eda_env: >-
+  {{ common_env | combine({
+    'EDA_SETTINGS_FILE': '/etc/eda.yaml',
+    'DJANGO_SUPERUSER_USERNAME': admin_user,
+    'REQUESTS_CA_BUNDLE': ca_trust_bundle,
+  }) }}
+
+_eda_secrets:
+  - 'eda_secret_key,type=mount,target=/etc/eda/SECRET_KEY'
+  - 'eda_db_password,type=env,target=EDA_DB_PASSWORD'
+  - 'eda_resource_server,type=env,target=EDA_RESOURCE_SERVER__SECRET_KEY'
+
+_eda_init_secrets: "{{ _eda_secrets + ['eda_admin_password,type=env,target=DJANGO_SUPERUSER_PASSWORD'] }}"
+
+_eda_common_volumes:
+  - '{{ ace_dir }}/eda/etc/settings.yaml:/etc/eda.yaml:ro,z'
+  - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'
+  - 'eda_data:/var/lib/ansible-automation-platform/eda:U'
+
+# Workers launch decision-environment containers via host rootless podman —
+# the receptor pattern: binary + libsubid + socket + HOME.
+_eda_worker_volumes: >-
+  {{ _eda_common_volumes + [
+    '/usr/bin/podman:/usr/bin/podman:ro',
+    '/usr/lib64/libsubid.so.3:/usr/lib64/libsubid.so.3:ro',
+    '/run/user/' ~ ansible_user_uid ~ '/podman/podman.sock:/run/user/' ~ ansible_user_uid ~ '/podman/podman.sock',
+  ] }}
+
+_eda_worker_env: >-
+  {{ _eda_env | combine({
+    'CONTAINER_HOST': 'unix://run/user/' ~ ansible_user_uid ~ '/podman/podman.sock',
+    'HOME': '/var/lib/ansible-automation-platform/eda',
+    'ANSIBLE_HOME': '/tmp/.ansible',
+    'ANSIBLE_LOCAL_TEMP': '/tmp/.ansible/tmp',
+    'ANSIBLE_REMOTE_TMP': '/tmp/.ansible/tmp',
+  }) }}
+
+_eda_web_volumes:
+  - '{{ ace_dir }}/eda/nginx/etc/nginx.conf:/etc/nginx/nginx.conf:ro,z'
+  - '{{ ace_dir }}/eda/etc/eda.cert:/etc/eda-tls/eda.cert:ro,z'
+  - '{{ ace_dir }}/eda/etc/eda.key:/etc/eda-tls/eda.key:ro,z'
+  - 'eda_data:/var/lib/ansible-automation-platform/eda'

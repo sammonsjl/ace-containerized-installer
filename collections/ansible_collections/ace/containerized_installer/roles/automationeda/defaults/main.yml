@@ -1,0 +1,7 @@
+---
+eda_pg_database: eda
+eda_pg_user: eda
+# bundle defaults are 2+2; one of each fits the 8 GB lab VM
+eda_workers: 1
+eda_activation_workers: 1
+eda_gunicorn_workers: 2
