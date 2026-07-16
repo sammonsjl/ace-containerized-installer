@@ -23,24 +23,6 @@
     that: _podman_version.stdout.split()[-1] is version(podman_min_version, '>=')
     fail_msg: 'podman >= {{ podman_min_version }} required, found: {{ _podman_version.stdout }}'
 
-- name: Check locally-built image tarballs are present
-  ansible.builtin.stat:
-    path: '{{ item }}'
-  register: _local_tars
-  loop:
-    - '{{ gateway_image_tar }}'
-    - '{{ hub_image_tar }}'
-
-- name: Assert the image tarballs exist
-  ansible.builtin.assert:
-    that: item.stat.exists
-    fail_msg: >-
-      {{ item.item }} not found. On the build host run podman save
-      (see README) — the GHCR images are amd64-only.
-  loop: '{{ _local_tars.results }}'
-  loop_control:
-    label: '{{ item.item }}'
-
 # Ports are only required to be free on the FIRST install — on re-runs our
 # own services legitimately hold them. The postgresql user unit is the marker.
 - name: Check whether this is a re-run
