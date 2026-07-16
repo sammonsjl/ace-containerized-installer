@@ -34,7 +34,7 @@
     env: '{{ common_env }}'
     command: redis-server /etc/redis.conf
     volume:
-      - '{{ ace_dir }}/redis/redis-unix.conf:/etc/redis.conf:ro,Z'
+      - '{{ ace_dir }}/redis/redis-unix.conf:/etc/redis.conf:ro,z'
       - 'redis_run:/run/redis:U'
       - 'redis_data_unix:/data:U'
     generate_systemd:
@@ -55,10 +55,10 @@
     env: '{{ common_env }}'
     command: redis-server /etc/redis.conf
     volume:
-      - '{{ ace_dir }}/redis/redis-tcp.conf:/etc/redis.conf:ro,Z'
-      - '{{ ace_dir }}/redis/redis-tcp.cert:/etc/redis-tls/redis-tcp.cert:ro,Z'
-      - '{{ ace_dir }}/redis/redis-tcp.key:/etc/redis-tls/redis-tcp.key:ro,Z'
-      - '{{ ace_dir }}/tls/ca.cert:/etc/redis-tls/ca.cert:ro,Z'
+      - '{{ ace_dir }}/redis/redis-tcp.conf:/etc/redis.conf:ro,z'
+      - '{{ ace_dir }}/redis/redis-tcp.cert:/etc/redis-tls/redis-tcp.cert:ro,z'
+      - '{{ ace_dir }}/redis/redis-tcp.key:/etc/redis-tls/redis-tcp.key:ro,z'
+      - '{{ ace_dir }}/tls/ca.cert:/etc/redis-tls/ca.cert:ro,z'
       - 'redis_data_tcp:/data:U'
     generate_systemd:
       container_prefix: ''
@@ -91,7 +91,7 @@
   ansible.builtin.command: >-
     podman exec redis-tcp redis-cli --tls
     --cacert /etc/redis-tls/ca.cert
-    -h {{ ace_hostname }} -p {{ redis_tcp_port }}
+    -h 127.0.0.1 -p {{ redis_tcp_port }}
     -a {{ redis_password }} ping
   register: _redis_tcp_ping
   until: _redis_tcp_ping.stdout == 'PONG'

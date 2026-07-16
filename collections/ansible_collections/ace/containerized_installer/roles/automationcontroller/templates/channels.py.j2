@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+BROADCAST_WEBSOCKET_SECRET = '{{ broadcast_websocket_secret }}'
+BROADCAST_WEBSOCKET_PORT = {{ controller_nginx_port }}
+BROADCAST_WEBSOCKET_PROTOCOL = 'https'
+BROADCAST_WEBSOCKET_VERIFY_CERT = False
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': ['unix:///run/redis/redis.sock?db=0'],
+            'capacity': 10000,
+            'group_expiry': 157784760,
+        },
+    }
+}

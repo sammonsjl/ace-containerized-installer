@@ -35,12 +35,21 @@
       {{ gateway_image_tar }} not found. On the build host run:
       podman save --format oci-archive -o images/ace-gateway-arm64.tar localhost/ace-gateway:dev
 
+# Ports are only required to be free on the FIRST install — on re-runs our
+# own services legitimately hold them. The postgresql user unit is the marker.
+- name: Check whether this is a re-run
+  ansible.builtin.stat:
+    path: '{{ ansible_user_dir }}/.config/systemd/user/postgresql.service'
+  register: _installed_marker
+
 - name: Collect listening TCP ports
   ansible.builtin.command: ss -Hltn
   register: _listening
   changed_when: false
+  when: not _installed_marker.stat.exists
 
 - name: Assert required ports are free
+  when: not _installed_marker.stat.exists
   ansible.builtin.assert:
     that: >-
       _listening.stdout_lines

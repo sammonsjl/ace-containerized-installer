@@ -1,0 +1,22 @@
+---
+- name: Enable and start the controller units
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - automation-controller-rsyslog
+    - automation-controller-task
+    - automation-controller-web
+
+- name: Wait for the controller API to answer
+  ansible.builtin.uri:
+    url: 'https://127.0.0.1:{{ controller_nginx_port }}/api/v2/ping/'
+    ca_path: '{{ ace_dir }}/tls/ca.cert'
+    status_code: 200
+  register: _controller_ping
+  until: _controller_ping.status == 200
+  retries: 30
+  delay: 10

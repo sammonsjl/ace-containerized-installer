@@ -1,2 +1,69 @@
 ---
-# stub — implemented in a later milestone
+- name: Create receptor volumes
+  containers.podman.podman_volume:
+    name: '{{ item }}'
+  loop:
+    - receptor_run
+    - receptor_data
+    - receptor_runner
+
+- name: Template receptor configuration
+  ansible.builtin.template:
+    src: receptor.conf.j2
+    dest: '{{ ace_dir }}/receptor/etc/receptor.conf'
+    mode: '0640'
+  notify: Restart receptor
+
+# security_opt label=disable + host podman binary/socket: receptor launches
+# execution-environment containers via the host's rootless podman.
+- name: Create the receptor container
+  containers.podman.podman_container:
+    name: receptor
+    image: '{{ receptor_image }}'
+    state: created
+    command: receptor --config /etc/receptor/receptor.conf
+    network: host
+    user: '{{ ansible_user_uid }}'
+    userns: keep-id
+    security_opt:
+      - label=disable
+    env: >-
+      {{ common_env | combine({
+        'RECEPTORCTL_SOCKET': '/run/receptor/receptor.sock',
+        'CONTAINER_HOST': 'unix://run/user/' ~ ansible_user_uid ~ '/podman/podman.sock',
+      }) }}
+    volume:
+      - '{{ ace_dir }}/receptor/etc/receptor.conf:/etc/receptor/receptor.conf:ro'
+      - 'receptor_run:/run/receptor:U'
+      - 'receptor_data:/var/lib/receptor:U'
+      - 'receptor_runner:/home/runner:U'
+      - '/usr/bin/podman:/usr/bin/podman:ro'
+      - '/run/user/{{ ansible_user_uid }}/podman/podman.sock:/run/user/{{ ansible_user_uid }}/podman/podman.sock'
+      # Job dirs bind at IDENTICAL host/container paths: ansible-runner in this
+      # container starts EE containers through the HOST podman socket, so every
+      # path it passes must exist on the host at the same location.
+      - '{{ ace_dir }}/controller/data/job_execution:{{ ace_dir }}/controller/data/job_execution'
+      - '{{ ace_dir }}/controller/data/projects:{{ ace_dir }}/controller/data/projects'
+    generate_systemd:
+      container_prefix: ''
+      separator: ''
+      path: '{{ ansible_user_dir }}/.config/systemd/user'
+      restart_policy: on-failure
+  notify: Restart receptor
+
+- name: Enable and start the receptor unit
+  ansible.builtin.systemd:
+    name: receptor
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Wait for the receptor control socket
+  ansible.builtin.command: >-
+    podman exec receptor receptorctl --socket /run/receptor/receptor.sock status
+  register: _receptor_status
+  until: _receptor_status.rc == 0
+  retries: 6
+  delay: 5
+  changed_when: false

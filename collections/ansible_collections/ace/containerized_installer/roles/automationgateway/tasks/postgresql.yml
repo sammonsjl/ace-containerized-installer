@@ -1,0 +1,20 @@
+---
+# Like the bundle, the consuming component creates its own database.
+- name: Create the gateway database user
+  community.postgresql.postgresql_user:
+    login_host: 127.0.0.1
+    login_port: '{{ postgresql_port }}'
+    login_user: '{{ postgresql_admin_user }}'
+    login_password: '{{ postgresql_admin_password }}'
+    login_db: postgres
+    name: '{{ gateway_pg_user }}'
+    password: '{{ gateway_pg_password }}'
+
+- name: Create the gateway database
+  community.postgresql.postgresql_db:
+    login_host: 127.0.0.1
+    login_port: '{{ postgresql_port }}'
+    login_user: '{{ postgresql_admin_user }}'
+    login_password: '{{ postgresql_admin_password }}'
+    name: '{{ gateway_pg_database }}'
+    owner: '{{ gateway_pg_user }}'

@@ -81,8 +81,8 @@
     rm: true
     detach: false
     volume:
-      - '{{ ace_dir }}/tls/ca.cert:/etc/pki/ca-trust/source/anchors/ace-ca.cert:ro,Z'
-      - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:Z'
+      - '{{ ace_dir }}/tls/ca.cert:/etc/pki/ca-trust/source/anchors/ace-ca.cert:ro,z'
+      - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:z'
   when: _ca_cert is changed or not _trust_pem.stat.exists
 
 - name: Check the extracted trust bundle exists

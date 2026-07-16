@@ -1,0 +1,80 @@
+---
+# Removes everything install.yml created. Data volumes and secrets go too —
+# this is a lab. Pass -e ace_purge=true to also delete ~/ace (certs, configs).
+- name: Uninstall the ACE control plane
+  hosts: ace-installer
+  become: false
+  gather_facts: false
+  vars:
+    _units:
+      - automation-controller-web
+      - automation-controller-task
+      - automation-controller-rsyslog
+      - receptor
+      - automation-gateway-proxy
+      - automation-gateway
+      - redis-tcp
+      - redis-unix
+      - postgresql
+    _volumes:
+      - postgresql
+      - redis_run
+      - redis_data_unix
+      - redis_data_tcp
+      - receptor_run
+      - receptor_data
+      - receptor_runner
+    _secrets:
+      - gateway_secret_key
+      - gateway_admin_password
+      - gateway_db_password
+      - gateway_redis_url
+      - controller_secret_key
+      - controller_postgres
+      - controller_channels
+      - controller_resource_server
+      - postgresql_admin_password
+  tasks:
+    - name: Stop and disable the user units
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        scope: user
+        state: stopped
+        enabled: false
+      loop: '{{ _units }}'
+      failed_when: false
+
+    - name: Remove the unit files
+      ansible.builtin.file:
+        path: '{{ ansible_user_dir }}/.config/systemd/user/{{ item }}.service'
+        state: absent
+      loop: '{{ _units }}'
+
+    - name: Reload the user systemd daemon
+      ansible.builtin.systemd:
+        scope: user
+        daemon_reload: true
+
+    - name: Remove the containers
+      containers.podman.podman_container:
+        name: '{{ item }}'
+        state: absent
+      loop: '{{ _units }}'
+
+    - name: Remove the volumes
+      containers.podman.podman_volume:
+        name: '{{ item }}'
+        state: absent
+      loop: '{{ _volumes }}'
+
+    - name: Remove the secrets
+      containers.podman.podman_secret:
+        name: '{{ item }}'
+        state: absent
+      loop: '{{ _secrets }}'
+
+    - name: Purge the config directory
+      ansible.builtin.file:
+        path: '{{ ansible_user_dir }}/ace'
+        state: absent
+      when: ace_purge | default(false) | bool

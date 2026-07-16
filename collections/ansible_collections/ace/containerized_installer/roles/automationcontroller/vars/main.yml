@@ -1,0 +1,41 @@
+---
+_controller_env: >-
+  {{ common_env | combine({
+    'DJANGO_SUPERUSER_USERNAME': admin_user,
+  }) }}
+
+_controller_secrets:
+  - 'controller_secret_key,type=mount,target=/etc/tower/SECRET_KEY'
+  - 'controller_postgres,type=mount,target=/etc/tower/conf.d/postgres.py'
+  - 'controller_channels,type=mount,target=/etc/tower/conf.d/channels.py'
+  - 'controller_resource_server,type=env,target=AWX_RESOURCE_SERVER__SECRET_KEY'
+
+# conf.d files templated to the host; secrets (postgres/channels) mount on top
+_controller_common_volumes:
+  - '{{ ace_dir }}/controller/etc/conf.d/ace.py:/etc/tower/conf.d/ace.py:ro,z'
+  - '{{ ace_dir }}/controller/etc/conf.d/cluster_host_id.py:/etc/tower/conf.d/cluster_host_id.py:ro,z'
+  - '{{ ace_dir }}/controller/etc/conf.d/redis.py:/etc/tower/conf.d/redis.py:ro,z'
+  - '{{ ace_dir }}/controller/etc/conf.d/container_groups.py:/etc/tower/conf.d/container_groups.py:ro,z'
+  - '{{ ace_dir }}/controller/etc/conf.d/execution_environments.py:/etc/tower/conf.d/execution_environments.py:ro,z'
+  - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'
+
+# Shared by web/task/rsyslog: job dirs (same-path binds), receptor + redis sockets
+_controller_service_volumes:
+  - '{{ controller_data_dir }}/job_execution:{{ controller_data_dir }}/job_execution'
+  - '{{ controller_data_dir }}/job_status:{{ controller_data_dir }}/job_status'
+  - '{{ controller_data_dir }}/projects:{{ controller_data_dir }}/projects'
+  - '{{ controller_data_dir }}/logs:/var/log/tower'
+  - '{{ controller_data_dir }}/rsyslog:/var/lib/awx/rsyslog'
+  - '{{ ace_dir }}/receptor/etc/receptor.conf:/etc/receptor/receptor.conf:ro'
+  - 'receptor_run:/run/receptor'
+  - 'redis_run:/run/redis'
+
+_controller_web_volumes:
+  - '{{ ace_dir }}/controller/etc/nginx.conf:/etc/nginx/nginx.conf:ro,z'
+  - '{{ ace_dir }}/controller/etc/controller.cert:/etc/nginx/tower.crt:ro,z'
+  - '{{ ace_dir }}/controller/etc/controller.key:/etc/nginx/tower.key:ro,z'
+
+_controller_task_volumes:
+  - '{{ ace_dir }}/controller/etc/launch_awx_task.sh:/usr/bin/launch_awx_task.sh:ro,z'
+  - '/usr/bin/podman:/usr/bin/podman:ro'
+  - '/run/user/{{ ansible_user_uid }}/podman/podman.sock:/run/user/{{ ansible_user_uid }}/podman/podman.sock'

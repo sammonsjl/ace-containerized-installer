@@ -1,0 +1,41 @@
+---
+# Shared between the long-running gateway container and every init container.
+
+_gateway_api: 'https://127.0.0.1:{{ gateway_nginx_port }}/api/gateway/v1'
+
+_gateway_redis_url: >-
+  rediss://:{{ redis_password }}@127.0.0.1:{{ redis_tcp_port }}/0?ssl_cert_reqs=required&ssl_ca_certs={{ ca_trust_bundle }}
+
+_gateway_env: >-
+  {{ common_env | combine({
+    'DJANGO_SETTINGS_MODULE': 'aap_gateway_api.settings',
+    'DATABASE_ENGINE': 'django.db.backends.postgresql',
+    'DATABASE_HOST': '127.0.0.1',
+    'DATABASE_PORT': postgresql_port | string,
+    'DATABASE_NAME': gateway_pg_database,
+    'DATABASE_USER': gateway_pg_user,
+    'REDIS_MODE': 'standalone',
+    'GATEWAY_SECRET_KEY_FILE': '/run/secrets/gateway_secret_key',
+    'DJANGO_SUPERUSER_USERNAME': admin_user,
+  }) }}
+
+_gateway_secrets:
+  - 'gateway_secret_key,type=mount,target=/run/secrets/gateway_secret_key'
+  - 'gateway_admin_password,type=env,target=DJANGO_SUPERUSER_PASSWORD'
+  - 'gateway_db_password,type=env,target=DATABASE_PASSWORD'
+  - 'gateway_redis_url,type=env,target=REDIS_URL'
+
+# Config mounts land ON TOP of the image's baked jewel defaults.
+_gateway_volumes:
+  - '{{ ace_dir }}/gateway/etc/settings.py:/etc/ansible-automation-platform/gateway/settings.py:ro,z'
+  - '{{ ace_dir }}/gateway/etc/uwsgi.ini:/etc/ansible-automation-platform/gateway/uwsgi.ini:ro,z'
+  - '{{ ace_dir }}/gateway/etc/gateway.cert:/etc/ansible-automation-platform/gateway/gateway.crt:ro,z'
+  - '{{ ace_dir }}/gateway/etc/gateway.key:/etc/ansible-automation-platform/gateway/gateway.key:ro,z'
+  - '{{ ace_dir }}/gateway/nginx/etc/nginx.conf:/etc/ansible-automation-platform/gateway/nginx.conf:ro,z'
+  - '{{ ace_dir }}/gateway/etc/supervisord.conf:/etc/supervisord.conf:ro,z'
+  - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'
+
+# Init containers only need settings + trust (no nginx/supervisor).
+_gateway_init_volumes:
+  - '{{ ace_dir }}/gateway/etc/settings.py:/etc/ansible-automation-platform/gateway/settings.py:ro,z'
+  - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:ro,z'

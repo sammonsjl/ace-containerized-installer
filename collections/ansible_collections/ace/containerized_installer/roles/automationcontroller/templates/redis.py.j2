@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+# Controller broker/cache over the redis-unix socket (shared redis_run volume).
+BROKER_URL = 'unix:///run/redis/redis.sock?db=0'
+CACHES = {
+    'default': {
+        'BACKEND': 'ansible_base.lib.cache.redis_cache.DABRedisCache',
+        'LOCATION': 'unix:///run/redis/redis.sock?db=1',
+    }
+}

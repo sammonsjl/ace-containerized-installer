@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+# Main ACE controller settings. Credentialed settings (DATABASES, channels)
+# arrive as podman-secret mounts; this file carries the rest.
+import os
+
+# SECRET_KEY must load from a conf.d file: awx-manage runs in the production
+# dynaconf layer, where the /etc/tower/SECRET_KEY file is not read by default.
+with open('/etc/tower/SECRET_KEY') as _f:
+    SECRET_KEY = _f.read().strip()
+
+ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    'https://{{ ace_hostname }}',
+    'https://{{ ace_ip }}',
+    'https://{{ ace_hostname }}:{{ controller_nginx_port }}',
+    'https://{{ ace_ip }}:{{ controller_nginx_port }}',
+]
+
+# Job dirs bind-mounted at IDENTICAL host/container paths: receptor's
+# ansible-runner hands these paths to host podman when launching EEs.
+AWX_ISOLATION_BASE_PATH = '{{ controller_data_dir }}/job_execution'
+PROJECTS_ROOT = '{{ controller_data_dir }}/projects'
+JOBOUTPUT_ROOT = '{{ controller_data_dir }}/job_status'
+
+# EE job containers run through the host's rootless podman
+DEFAULT_CONTAINER_RUN_OPTIONS = ['--network', 'slirp4netns:enable_ipv6=true']
+
+# Apple Silicon/VMware SIGILL workaround, injected into every EE job
+AWX_TASK_ENV = {'OPENSSL_armcap': '0'}
+
+# Gateway integration: trust gateway-issued JWTs and use its resource server.
+# The secret arrives via env (AWX_RESOURCE_SERVER__SECRET_KEY).
+ANSIBLE_BASE_JWT_KEY = '{{ gateway_main_url }}'
+ANSIBLE_BASE_JWT_VALIDATE_CERT = True
+RESOURCE_SERVER = {
+    'URL': '{{ gateway_main_url }}',
+    'SECRET_KEY': os.environ.get('AWX_RESOURCE_SERVER__SECRET_KEY', ''),
+    'VALIDATE_HTTPS': True,
+}
+OPTIONAL_API_URLPATTERN_PREFIX = 'controller'

@@ -1,0 +1,67 @@
+# {{ ansible_managed }}
+# Production process set: nginx + uwsgi + gRPC control plane + dispatcher.
+# (No auto-reload/runserver — those are jewel development conveniences.)
+[supervisord]
+umask = 022
+minfds = 4096
+nodaemon = true
+pidfile = /var/run/supervisor/supervisord.pid
+logfile = /var/log/supervisor/supervisord.log
+childlogdir = /var/log/supervisor
+
+[program:nginx]
+command = nginx -g "daemon off;" -c /etc/ansible-automation-platform/gateway/nginx.conf
+autorestart = true
+stopasgroup = true
+killasgroup = true
+stdout_logfile = /dev/stdout
+stdout_logfile_maxbytes = 0
+stderr_logfile = /dev/stderr
+stderr_logfile_maxbytes = 0
+
+[program:uwsgi]
+command = /opt/aap_gateway/venv/bin/uwsgi /etc/ansible-automation-platform/gateway/uwsgi.ini
+autorestart = true
+stopwaitsecs = 5
+stopsignal = KILL
+stopasgroup = true
+killasgroup = true
+stdout_logfile = /dev/stdout
+stdout_logfile_maxbytes = 0
+stderr_logfile = /dev/stderr
+stderr_logfile_maxbytes = 0
+
+[program:control-plane]
+command = /usr/bin/aap-gateway-manage start_grpc_server
+autorestart = true
+stopwaitsecs = 5
+stopsignal = KILL
+stopasgroup = true
+killasgroup = true
+stdout_logfile = /dev/stdout
+stdout_logfile_maxbytes = 0
+stderr_logfile = /dev/stderr
+stderr_logfile_maxbytes = 0
+
+[program:dispatcher]
+command = /usr/bin/aap-gateway-manage dispatcherd
+autorestart = true
+stopasgroup = true
+killasgroup = true
+stdout_logfile = /dev/stdout
+stdout_logfile_maxbytes = 0
+stderr_logfile = /dev/stderr
+stderr_logfile_maxbytes = 0
+
+[group:gateway-processes]
+programs = nginx,uwsgi,control-plane,dispatcher
+priority = 5
+
+[unix_http_server]
+file = /var/run/supervisor/supervisor.sock
+
+[supervisorctl]
+serverurl = unix:///var/run/supervisor/supervisor.sock
+
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface

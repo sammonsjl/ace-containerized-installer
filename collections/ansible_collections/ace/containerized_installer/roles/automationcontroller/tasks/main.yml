@@ -1,2 +1,21 @@
 ---
-# stub — implemented in a later milestone
+- name: Probe the controller image for expected entrypoints
+  ansible.builtin.import_tasks: probe_image.yml
+
+- name: Create the controller database and user
+  ansible.builtin.import_tasks: postgresql.yml
+
+- name: Create controller podman secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Template controller configuration
+  ansible.builtin.import_tasks: config.yml
+
+- name: Run controller init (migrate, instance, queues, superuser)
+  ansible.builtin.import_tasks: init.yml
+
+- name: Create the controller containers
+  ansible.builtin.import_tasks: containers.yml
+
+- name: Start the controller services
+  ansible.builtin.import_tasks: systemd.yml
