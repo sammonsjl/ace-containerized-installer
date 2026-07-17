@@ -1,0 +1,343 @@
+---
+# Registers the homelab storage-maintenance workload in the controller:
+# the Synology DSM custom credential type + credential, a manual project
+# holding the cleanup playbook, an inventory, a dedicated container group
+# whose pods run as the ace-maintenance ServiceAccount, and the job
+# template that ties them together.
+#
+# The playbook content lives in the homelab repo (ansible/); this delivers
+# it to the controller's PROJECTS_ROOT as a manual project. Once that repo
+# is pushed it can instead become a git-SCM project pointing at main.
+#
+# Two plays: deliver files to the VM, then wire the API from localhost.
+#   ansible-playbook -i inventory/homelab.yml playbooks/wire-workloads.yml
+# Needs kubectl access to the execution cluster (to seed DSM creds) and
+# network access to the controller.
+
+- name: Deliver the storage-maintenance project to PROJECTS_ROOT
+  hosts: ace-installer
+  become: false
+  gather_facts: true
+  vars:
+    project_local_path: homelab_storage
+    workload_project_src: "{{ lookup('env', 'HOME') }}/code/homelab/ansible"
+  tasks:
+    - name: Create the manual-project directory
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy the workload playbooks in
+      ansible.builtin.copy:
+        src: "{{ workload_project_src }}/"
+        dest: "{{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}/"
+        mode: '0644'
+
+    # Files added after container start miss the :z relabel, so the confined
+    # controller process is denied by SELinux (EACCES despite 0644). Label
+    # them container_file_t, matching the installer's own project files.
+    - name: Label the project files for the container (SELinux)
+      ansible.builtin.command:
+        cmd: >-
+          chcon -R -t container_file_t
+          {{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}
+      become: true
+      changed_when: true
+      when: ansible_selinux.status | default('disabled') == 'enabled'
+
+- name: Wire the storage-maintenance workload into the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    controller_url: https://192.168.1.40
+    controller_user: admin
+    controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
+    organization: Default
+    project_local_path: homelab_storage
+    playbook_name: cleanup-released-pvs.yml
+    # Where to read the DSM API creds to seed the ACE credential (same
+    # secret ESO syncs from Vault for synology-csi).
+    dsm_secret_namespace: synology-csi
+    dsm_secret_name: client-info-secret
+    dsm_kubectl_context: admin@yojimbo
+    # Maintenance container group: pods run as ace-maintenance with an
+    # auto-mounted (short-lived) token carrying the PV-delete ClusterRole.
+    maintenance_group: yojimbo-maintenance
+    maintenance_credential: yojimbo-ace-jobs
+    ee_image: quay.io/ansible/awx-ee:latest
+    job_template_name: 'Synology — reclaim released PVs'
+    inventory_name: Homelab
+    credential_type_name: Synology DSM
+    dsm_credential_name: synology-dsm
+    _api: '{{ controller_url }}/api/controller/v2'
+    _pod_spec:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        namespace: ace-jobs
+      spec:
+        # AWX's default pod spec forces automountServiceAccountToken: false
+        # and forbids overriding it, so we mount a short-lived projected
+        # token for the ace-maintenance SA by hand — reconstructing the
+        # standard in-cluster paths so kubernetes.core authenticates with
+        # the PV-delete role, without a long-lived token in the controller.
+        serviceAccountName: ace-maintenance
+        volumes:
+          - name: kube-api-access
+            projected:
+              defaultMode: 420
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    expirationSeconds: 3600
+                - configMap:
+                    name: kube-root-ca.crt
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                - downwardAPI:
+                    items:
+                      - path: namespace
+                        fieldRef:
+                          fieldPath: metadata.namespace
+        containers:
+          - image: '{{ ee_image }}'
+            name: worker
+            args: ['ansible-runner', 'worker', '--private-data-dir=/runner']
+            volumeMounts:
+              - name: kube-api-access
+                mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+                readOnly: true
+    _dsm_credential_type_inputs:
+      fields:
+        - id: host
+          type: string
+          label: DSM host
+        - id: port
+          type: string
+          label: DSM port
+          default: '5000'
+        - id: username
+          type: string
+          label: API username
+        - id: password
+          type: string
+          label: API password
+          secret: true
+        - id: use_https
+          type: boolean
+          label: Use HTTPS
+          default: false
+      required: [host, username, password]
+    _dsm_credential_type_injectors:
+      env:
+        SYNO_DSM_HOST: '{{ "{{" }} host {{ "}}" }}'
+        SYNO_DSM_PORT: '{{ "{{" }} port {{ "}}" }}'
+        SYNO_DSM_USERNAME: '{{ "{{" }} username {{ "}}" }}'
+        SYNO_DSM_PASSWORD: '{{ "{{" }} password {{ "}}" }}'
+        SYNO_DSM_HTTPS: '{{ "{{" }} use_https {{ "}}" }}'
+  module_defaults:
+    ansible.builtin.uri:
+      url_username: '{{ controller_user }}'
+      url_password: '{{ controller_password }}'
+      force_basic_auth: true
+      validate_certs: false
+      return_content: true
+  tasks:
+    - name: Read the DSM client-info secret from the cluster
+      ansible.builtin.command: >-
+        kubectl --context {{ dsm_kubectl_context }}
+        --namespace {{ dsm_secret_namespace }}
+        get secret {{ dsm_secret_name }} --output json
+      register: _dsm_secret
+      changed_when: false
+
+    - name: Parse the first DSM client entry
+      ansible.builtin.set_fact:
+        _dsm: >-
+          {{ ((_dsm_secret.stdout | from_json).data['client-info.yml']
+              | b64decode | from_yaml).clients[0] }}
+      no_log: true
+
+    - name: Look up the organization
+      ansible.builtin.uri:
+        url: '{{ _api }}/organizations/?name={{ organization | urlencode }}'
+      register: _org
+      failed_when: _org.json.count != 1
+
+    # --- DSM custom credential type ---
+    - name: Check for the DSM credential type
+      ansible.builtin.uri:
+        url: '{{ _api }}/credential_types/?name={{ credential_type_name | urlencode }}'
+      register: _ct
+
+    - name: Create or update the DSM credential type
+      ansible.builtin.uri:
+        url: "{{ _api }}/credential_types/{{ (_ct.json.count > 0) | ternary((_ct.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_ct.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ credential_type_name }}'
+          kind: cloud
+          inputs: '{{ _dsm_credential_type_inputs }}'
+          injectors: '{{ _dsm_credential_type_injectors }}'
+        status_code: [200, 201]
+      register: _ct_write
+      changed_when: true
+
+    # --- DSM credential (values seeded from the cluster secret) ---
+    - name: Check for the DSM credential
+      ansible.builtin.uri:
+        url: '{{ _api }}/credentials/?name={{ dsm_credential_name | urlencode }}'
+      register: _cred
+
+    - name: Create or update the DSM credential
+      ansible.builtin.uri:
+        url: "{{ _api }}/credentials/{{ (_cred.json.count > 0) | ternary((_cred.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_cred.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ dsm_credential_name }}'
+          organization: '{{ _org.json.results[0].id }}'
+          credential_type: '{{ _ct_write.json.id }}'
+          inputs:
+            host: '{{ _dsm.host }}'
+            port: '{{ _dsm.port | default(5000) | string }}'
+            username: '{{ _dsm.username }}'
+            password: '{{ _dsm.password }}'
+            use_https: '{{ _dsm.https | default(false) }}'
+        status_code: [200, 201]
+      register: _cred_write
+      changed_when: true
+      no_log: true
+
+    # --- manual project (files delivered by the first play) ---
+    - name: Check for the project
+      ansible.builtin.uri:
+        url: '{{ _api }}/projects/?name={{ "Homelab Storage" | urlencode }}'
+      register: _proj
+
+    - name: Create or update the project
+      ansible.builtin.uri:
+        url: "{{ _api }}/projects/{{ (_proj.json.count > 0) | ternary((_proj.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_proj.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: Homelab Storage
+          organization: '{{ _org.json.results[0].id }}'
+          scm_type: ''
+          local_path: '{{ project_local_path }}'
+        status_code: [200, 201]
+      register: _proj_write
+      changed_when: true
+
+    # --- inventory (playbook targets localhost) ---
+    - name: Check for the inventory
+      ansible.builtin.uri:
+        url: '{{ _api }}/inventories/?name={{ inventory_name | urlencode }}'
+      register: _inv
+
+    - name: Create the inventory
+      ansible.builtin.uri:
+        url: '{{ _api }}/inventories/'
+        method: POST
+        body_format: json
+        body:
+          name: '{{ inventory_name }}'
+          organization: '{{ _org.json.results[0].id }}'
+        status_code: [200, 201]
+      register: _inv_new
+      changed_when: true
+      when: _inv.json.count == 0
+
+    - name: Resolve the inventory id
+      ansible.builtin.set_fact:
+        _inventory_id: "{{ (_inv.json.count > 0) | ternary(_inv.json.results | map(attribute='id') | first | default(0), _inv_new.json.id | default(0)) }}"
+
+    - name: Ensure a localhost host exists in the inventory
+      ansible.builtin.uri:
+        url: '{{ _api }}/inventories/{{ _inventory_id }}/hosts/'
+        method: POST
+        body_format: json
+        body:
+          name: localhost
+          variables: "{{ {'ansible_connection': 'local'} | to_json }}"
+        status_code: [200, 201, 400]
+      changed_when: true
+
+    # --- maintenance container group ---
+    - name: Look up the container-group launch credential
+      ansible.builtin.uri:
+        url: '{{ _api }}/credentials/?name={{ maintenance_credential | urlencode }}'
+      register: _cg_cred
+      failed_when: _cg_cred.json.count != 1
+
+    - name: Check for the maintenance container group
+      ansible.builtin.uri:
+        url: '{{ _api }}/instance_groups/?name={{ maintenance_group | urlencode }}'
+      register: _group
+
+    - name: Create or update the maintenance container group
+      ansible.builtin.uri:
+        url: "{{ _api }}/instance_groups/{{ (_group.json.count > 0) | ternary((_group.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_group.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ maintenance_group }}'
+          is_container_group: true
+          credential: '{{ _cg_cred.json.results[0].id }}'
+          pod_spec_override: '{{ _pod_spec | to_json }}'
+        status_code: [200, 201]
+      register: _group_write
+      changed_when: true
+
+    # --- job template ---
+    - name: Check for the job template
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/?name={{ job_template_name | urlencode }}'
+      register: _jt
+
+    - name: Create or update the job template
+      ansible.builtin.uri:
+        url: "{{ _api }}/job_templates/{{ (_jt.json.count > 0) | ternary((_jt.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_jt.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ job_template_name }}'
+          job_type: run
+          organization: '{{ _org.json.results[0].id }}'
+          inventory: '{{ _inventory_id }}'
+          project: '{{ _proj_write.json.id }}'
+          playbook: '{{ playbook_name }}'
+          extra_vars: "{{ {'cleanup_dry_run': false} | to_nice_yaml }}"
+        status_code: [200, 201]
+      register: _jt_write
+      changed_when: true
+
+    # The association endpoints require an integer id (a templated string
+    # "4" is rejected with HTTP 400), so serialize the body with to_json.
+    - name: Pin the job template to the maintenance container group
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/{{ _jt_write.json.id }}/instance_groups/'
+        method: POST
+        body_format: json
+        body: "{{ {'id': _group_write.json.id | int} | to_json }}"
+        status_code: [200, 201, 204]
+      changed_when: true
+
+    - name: Attach the DSM credential to the job template
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/{{ _jt_write.json.id }}/credentials/'
+        method: POST
+        body_format: json
+        body: "{{ {'id': _cred_write.json.id | int} | to_json }}"
+        status_code: [200, 201, 204]
+      changed_when: true
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          Job template '{{ job_template_name }}' (id {{ _jt_write.json.id }})
+          wired: project Homelab Storage / {{ playbook_name }}, container
+          group {{ maintenance_group }}, credential {{ dsm_credential_name }}.
