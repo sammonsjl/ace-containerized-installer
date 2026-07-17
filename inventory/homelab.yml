@@ -1,0 +1,15 @@
+---
+# Homelab ACE control-plane VM (terraform/ace in the homelab repo),
+# replacing the Vagrant target.
+# Run with: ansible-playbook -i inventory/homelab.yml playbooks/install.yml
+# NOTE: ace_* overrides must be HOST vars — inventory-file group vars lose
+# to group_vars/all.yml in Ansible precedence.
+all:
+  hosts:
+    ace-installer:
+      ansible_host: 192.168.1.40
+      ansible_user: jamie
+      ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+      ansible_python_interpreter: /usr/bin/python3
+      ace_hostname: ace
+      ace_ip: 192.168.1.40
