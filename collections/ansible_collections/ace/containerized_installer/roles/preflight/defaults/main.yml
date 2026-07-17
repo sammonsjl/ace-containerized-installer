@@ -1,2 +1,11 @@
 ---
 podman_min_version: '4.4.0'
+
+preflight_packages:
+  - podman
+  - crun
+  - slirp4netns
+  - python3-cryptography
+  - python3-psycopg2
+  - firewalld
+  - python3-firewall
