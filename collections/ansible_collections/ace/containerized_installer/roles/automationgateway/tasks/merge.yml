@@ -24,7 +24,9 @@
     secrets: '{{ _gateway_secrets }}'
     volume: '{{ _gateway_init_volumes }}'
   register: _merge
-  retries: 3
-  delay: 20
+  # Pulp and EDA take minutes to cold-start on first boot; the merge fails
+  # until every registered service answers, so give it up to ~5 minutes.
+  retries: 10
+  delay: 30
   until: _merge is not failed
   changed_when: true
