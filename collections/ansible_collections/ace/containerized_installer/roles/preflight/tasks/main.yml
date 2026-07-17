@@ -13,6 +13,23 @@
     that: ansible_memtotal_mb >= 7000
     fail_msg: 'At least 8 GB of RAM is required (found {{ ansible_memtotal_mb }} MB).'
 
+# The Vagrant box ships these; a stock Rocky cloud image (terraform/ace)
+# does not. python3-cryptography/psycopg2 back the community.crypto and
+# postgresql modules on the target; python3-firewall backs ansible.posix.
+# firewalld in the common role.
+- name: Install required OS packages
+  ansible.builtin.dnf:
+    name: '{{ preflight_packages }}'
+    state: present
+  become: true
+
+- name: Enable firewalld (the common role opens the envoy ports through it)
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+  become: true
+
 - name: Check podman is installed
   ansible.builtin.command: podman --version
   register: _podman_version
