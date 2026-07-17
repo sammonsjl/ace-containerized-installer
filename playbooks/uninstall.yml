@@ -4,7 +4,8 @@
 - name: Uninstall the ACE control plane
   hosts: ace-installer
   become: false
-  gather_facts: false
+  # Facts are required: the unit-file and purge tasks use ansible_user_dir.
+  gather_facts: true
   vars:
     _units:
       - automation-hub-web
