@@ -82,7 +82,7 @@
 
     - name: Create or update the credential
       ansible.builtin.uri:
-        url: "{{ _api }}/credentials/{{ (_cred.json.count > 0) | ternary(_cred.json.results[0].id ~ '/', '') }}"
+        url: "{{ _api }}/credentials/{{ (_cred.json.count > 0) | ternary((_cred.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
         method: "{{ (_cred.json.count > 0) | ternary('PATCH', 'POST') }}"
         body_format: json
         body:
@@ -106,7 +106,7 @@
 
     - name: Create or update the container group
       ansible.builtin.uri:
-        url: "{{ _api }}/instance_groups/{{ (_group.json.count > 0) | ternary(_group.json.results[0].id ~ '/', '') }}"
+        url: "{{ _api }}/instance_groups/{{ (_group.json.count > 0) | ternary((_group.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
         method: "{{ (_group.json.count > 0) | ternary('PATCH', 'POST') }}"
         body_format: json
         body:
