@@ -52,6 +52,8 @@ vagrant up
 # 3. Install everything
 ansible-galaxy collection install -r requirements.yml -p ./collections
 ansible-playbook playbooks/install.yml
+# ...or target the homelab VM instead of Vagrant:
+ansible-playbook -i inventory/homelab.yml playbooks/install.yml
 
 # 4. Log in
 open https://192.168.56.30/     # accept the self-signed cert
@@ -63,7 +65,7 @@ cat .secrets/admin_password
 | Bundle | Here | Why |
 |---|---|---|
 | RHEL9 SCL postgres/redis images | `postgres:15` / `redis:7` (docker.io) | public images; tuning via mounted conf/args instead of SCL env vars |
-| OS packages installed by the customer per docs | Vagrant shell provisioner | keeps the Ansible run 100 % rootless, same split |
+| OS packages installed by the customer per docs | preflight role (`dnf`, the one `become` block besides host prep) | a stock EL9 cloud image installs cleanly, not just the Vagrant box |
 | `ansible.platform` modules for service registration | plain REST (`ansible.builtin.uri`) | the collection isn't published upstream; the modules wrap this same API |
 | redis mTLS client certs | server-TLS + password | single-host loopback; client-cert auth is 2-VM-variant work |
 | receptor mesh TLS + work signing | local-only control socket | single node; the mesh returns in the 2-VM variant |
@@ -80,6 +82,21 @@ Every Python process that imports `cryptography` inside an aarch64 VM under
 VMware Fusion dies with SIGILL (exit 132) unless `OPENSSL_armcap=0` is set.
 The playbook sets it at play level (covers Ansible modules on the VM), on every
 container, and via `AWX_TASK_ENV` for execution-environment jobs.
+
+## Kubernetes execution plane
+
+Container-group execution needs two halves: the cluster-side contract
+(namespace + service account + Role + long-lived token secret — see
+`infrastructure/configs/yojimbo/ace-jobs/` in the homelab repo) and the
+controller-side wiring (bearer-token credential + container group). The
+latter is codified here:
+
+```sh
+# needs kubectl access to the cluster and network access to the controller
+ansible-playbook playbooks/wire-execution-plane.yml
+```
+
+Defaults target yojimbo; override the `plane_*` vars for another cluster.
 
 ## Uninstall
 

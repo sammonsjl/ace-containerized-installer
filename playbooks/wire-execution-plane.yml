@@ -1,0 +1,125 @@
+---
+# Codifies the controller<->cluster wiring that makes container-group
+# execution work: a Kubernetes bearer-token credential plus a container
+# group whose pods land in the cluster's job namespace. The cluster side
+# of the contract (namespace + SA + Role + long-lived token secret, all
+# named alike) lives in the homelab repo under
+# infrastructure/configs/yojimbo/ace-jobs/.
+#
+# Idempotent: objects are matched by name and PATCHed in place. Run from
+# a machine with kubectl access to the execution cluster and network
+# access to the controller:
+#   ansible-playbook playbooks/wire-execution-plane.yml
+- name: Wire a Kubernetes execution plane into the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    controller_url: https://192.168.1.40
+    controller_user: admin
+    controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
+    # The execution-plane contract. Everything below defaults to yojimbo.
+    plane_name: yojimbo
+    plane_api_url: https://192.168.1.20:6443
+    plane_namespace: ace-jobs
+    plane_token_secret: ace-jobs
+    plane_kubectl_context: admin@yojimbo
+    plane_organization: Default
+    plane_ee_image: quay.io/ansible/awx-ee:latest
+    plane_credential_name: '{{ plane_name }}-{{ plane_namespace }}'
+    _api: '{{ controller_url }}/api/controller/v2'
+    # Jobs run as the namespace's default SA with no API token mounted —
+    # the pod needs no cluster access, only the controller does.
+    _pod_spec:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        namespace: '{{ plane_namespace }}'
+      spec:
+        serviceAccountName: default
+        automountServiceAccountToken: false
+        containers:
+          - image: '{{ plane_ee_image }}'
+            name: worker
+            args: ['ansible-runner', 'worker', '--private-data-dir=/runner']
+  module_defaults:
+    ansible.builtin.uri:
+      url_username: '{{ controller_user }}'
+      url_password: '{{ controller_password }}'
+      force_basic_auth: true
+      validate_certs: false
+      return_content: true
+  tasks:
+    - name: Read the service-account token secret from the cluster
+      ansible.builtin.command: >-
+        kubectl --context {{ plane_kubectl_context }}
+        --namespace {{ plane_namespace }}
+        get secret {{ plane_token_secret }} --output json
+      register: _secret
+      changed_when: false
+
+    - name: Decode the bearer token and cluster CA
+      ansible.builtin.set_fact:
+        _sa_token: "{{ (_secret.stdout | from_json).data.token | b64decode }}"
+        _sa_ca: "{{ (_secret.stdout | from_json).data['ca.crt'] | b64decode }}"
+      no_log: true
+
+    - name: Look up the bearer-token credential type
+      ansible.builtin.uri:
+        url: '{{ _api }}/credential_types/?name={{ "OpenShift or Kubernetes API Bearer Token" | urlencode }}'
+      register: _cred_type
+      failed_when: _cred_type.json.count != 1
+
+    - name: Look up the organization
+      ansible.builtin.uri:
+        url: '{{ _api }}/organizations/?name={{ plane_organization | urlencode }}'
+      register: _org
+      failed_when: _org.json.count != 1
+
+    - name: Check for an existing credential
+      ansible.builtin.uri:
+        url: '{{ _api }}/credentials/?name={{ plane_credential_name | urlencode }}'
+      register: _cred
+
+    - name: Create or update the credential
+      ansible.builtin.uri:
+        url: "{{ _api }}/credentials/{{ (_cred.json.count > 0) | ternary(_cred.json.results[0].id ~ '/', '') }}"
+        method: "{{ (_cred.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ plane_credential_name }}'
+          organization: '{{ _org.json.results[0].id }}'
+          credential_type: '{{ _cred_type.json.results[0].id }}'
+          inputs:
+            host: '{{ plane_api_url }}'
+            verify_ssl: true
+            ssl_ca_cert: '{{ _sa_ca }}'
+            bearer_token: '{{ _sa_token }}'
+        status_code: [200, 201]
+      register: _cred_write
+      changed_when: true
+      no_log: true
+
+    - name: Check for an existing container group
+      ansible.builtin.uri:
+        url: '{{ _api }}/instance_groups/?name={{ plane_name | urlencode }}'
+      register: _group
+
+    - name: Create or update the container group
+      ansible.builtin.uri:
+        url: "{{ _api }}/instance_groups/{{ (_group.json.count > 0) | ternary(_group.json.results[0].id ~ '/', '') }}"
+        method: "{{ (_group.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ plane_name }}'
+          is_container_group: true
+          credential: '{{ _cred_write.json.id }}'
+          pod_spec_override: '{{ _pod_spec | to_json }}'
+        status_code: [200, 201]
+      changed_when: true
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          Container group '{{ plane_name }}' wired to {{ plane_api_url }}
+          (namespace {{ plane_namespace }}) via credential
+          '{{ plane_credential_name }}'.
