@@ -98,6 +98,25 @@ ansible-playbook playbooks/wire-execution-plane.yml
 
 Defaults target yojimbo; override the `plane_*` vars for another cluster.
 
+### Workloads
+
+`wire-workloads.yml` registers the homelab storage-maintenance job — a
+manual project (the cleanup playbook from the homelab repo's `ansible/`),
+a Synology DSM custom credential type + credential (seeded from the
+cluster secret), an inventory, a dedicated container group whose pods run
+as the `ace-maintenance` ServiceAccount, and the job template tying them
+together:
+
+```sh
+ansible-playbook -i inventory/homelab.yml playbooks/wire-workloads.yml
+```
+
+Two notes that cost real debugging, encoded in the playbook: files added
+to `PROJECTS_ROOT` after container start need an SELinux relabel to
+`container_file_t`, and AWX's default pod spec forces
+`automountServiceAccountToken: false` (and forbids overriding it), so the
+container group mounts a projected SA token by hand.
+
 ## Uninstall
 
 ```sh
