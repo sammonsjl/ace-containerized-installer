@@ -23,3 +23,13 @@
     command: ansible-runner
     params: worker
     allowruntimeparams: true
+
+# Container-group execution: AWX submits kubernetes-runtime-auth work with
+# the kubeconfig/bearer credential passed at runtime (no static cluster
+# config on the node).
+- work-kubernetes:
+    worktype: kubernetes-runtime-auth
+    authmethod: runtime
+    allowruntimeauth: true
+    allowruntimepod: true
+    allowruntimeparams: true
