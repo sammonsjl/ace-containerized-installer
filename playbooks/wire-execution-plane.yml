@@ -14,7 +14,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    controller_url: https://192.168.1.40
+    controller_url: https://192.168.1.45
     controller_user: admin
     controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
     # The execution-plane contract. Everything below defaults to yojimbo.
