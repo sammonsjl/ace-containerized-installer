@@ -1,15 +1,18 @@
 ---
-# Homelab ACE control-plane VM (terraform/ace in the homelab repo),
-# replacing the Vagrant target.
+# The ACE control-plane host on Proxmox, built by terraform/ in this repo.
 # Run with: ansible-playbook -i inventory/homelab.yml playbooks/install.yml
-# NOTE: ace_* overrides must be HOST vars — inventory-file group vars lose
-# to group_vars/all.yml in Ansible precedence.
+#
+# NOTE: ace_* overrides must be HOST vars — inventory-file group vars lose to
+# group_vars/all.yml in Ansible precedence.
+#
+# .45, not .40: the bare-metal estate owns .40-.44 when it exists, and this
+# host has to be able to coexist with it.
 all:
   hosts:
     ace-installer:
-      ansible_host: 192.168.1.40
-      ansible_user: jamie
-      ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+      ansible_host: 192.168.1.45
+      ansible_user: rocky
+      ansible_ssh_private_key_file: ~/.ssh/ace_lab_ed25519
       ansible_python_interpreter: /usr/bin/python3
       ace_hostname: ace
-      ace_ip: 192.168.1.40
+      ace_ip: 192.168.1.45

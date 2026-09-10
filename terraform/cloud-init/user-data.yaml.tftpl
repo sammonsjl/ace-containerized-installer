@@ -1,0 +1,41 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}
+preserve_hostname: false
+
+users:
+  - name: ${guest_user}
+    groups: [wheel]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_pubkey}
+
+# Rocky's GenericCloud image does NOT ship qemu-guest-agent — Fedora Cloud Base
+# does, which is why the bare-metal estate could just switch the agent on. Here
+# it has to be installed on first boot, and the VM resource's agent timeout has
+# to be long enough to cover that.
+packages:
+  - qemu-guest-agent
+
+package_update: true
+
+runcmd:
+  - [systemctl, enable, --now, qemu-guest-agent]
+  # The installer's common role lowers this itself, but doing it here means the
+  # very first run does not need a reboot to bind 443 rootless.
+  - [sh, -c, "echo 'net.ipv4.ip_unprivileged_port_start=80' > /etc/sysctl.d/99-ace-ports.conf"]
+  - [sysctl, --system]
+  # Rootless podman needs a subuid/subgid range for the service user. The cloud
+  # image creates the user without one.
+  - [sh, -c, "grep -q '^${guest_user}:' /etc/subuid || usermod --add-subuids 100000-165535 --add-subgids 100000-165535 ${guest_user}"]
+
+write_files:
+  - path: /etc/hosts
+    append: true
+    content: |
+      ${ip} ${hostname}
+
+growpart:
+  mode: auto
+  devices: ["/"]
