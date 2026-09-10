@@ -20,7 +20,7 @@ stderr_logfile = /dev/stderr
 stderr_logfile_maxbytes = 0
 
 [program:uwsgi]
-command = /opt/aap_gateway/venv/bin/uwsgi /etc/ansible-automation-platform/gateway/uwsgi.ini
+command = /opt/aap-gateway/venv/bin/uwsgi /etc/ansible-automation-platform/gateway/uwsgi.ini
 autorestart = true
 stopwaitsecs = 5
 stopsignal = KILL

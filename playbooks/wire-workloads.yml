@@ -65,7 +65,9 @@
     # auto-mounted (short-lived) token carrying the PV-delete ClusterRole.
     maintenance_group: yojimbo-maintenance
     maintenance_credential: yojimbo-ace-jobs
-    ee_image: quay.io/ansible/awx-ee:latest
+    # Literal on purpose: this playbook runs standalone, with no -i, so
+    # inventory group_vars never load. Keep in step with group_vars/all.yml.
+    ee_image: ghcr.io/sammonsjl/ace-ee-minimal:latest
     job_template_name: 'Synology — reclaim released PVs'
     inventory_name: Homelab
     credential_type_name: Synology DSM

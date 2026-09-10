@@ -24,7 +24,9 @@
     plane_token_secret: ace-jobs
     plane_kubectl_context: admin@yojimbo
     plane_organization: Default
-    plane_ee_image: quay.io/ansible/awx-ee:latest
+    # Literal on purpose: this playbook runs standalone, with no -i, so
+    # inventory group_vars never load. Keep in step with group_vars/all.yml.
+    plane_ee_image: ghcr.io/sammonsjl/ace-ee-minimal:latest
     plane_credential_name: '{{ plane_name }}-{{ plane_namespace }}'
     _api: '{{ controller_url }}/api/controller/v2'
     # Jobs run as the namespace's default SA with no API token mounted —

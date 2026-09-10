@@ -7,27 +7,37 @@ ace_ip: 192.168.56.30
 ace_dir: "{{ ansible_user_dir }}/ace"
 
 # ── Images ──────────────────────────────────────────────────────────────────
-# gateway/hub are pulled from GHCR (multi-arch: linux/amd64 + linux/arm64) and
-# retagged to the *_image names below; if the pull fails (offline, no GHCR
-# auth), the images role falls back to loading the *_image_tar tarballs.
-gateway_image: localhost/ace-gateway:dev
-gateway_image_tar: /vagrant/images/ace-gateway-arm64.tar
-gateway_ghcr_image: ghcr.io/sammonsjl/ace-gateway:latest
-hub_image: localhost/ace-hub:dev                    # galaxy_ng on pulp/base — built in ace-images
-hub_image_tar: /vagrant/images/ace-hub-arm64.tar
-hub_ghcr_image: ghcr.io/sammonsjl/ace-hub:latest
-hub_web_image: docker.io/library/nginx:stable       # plain mux; hub UI comes from the platform UI
+# Every platform component is built by ace-images and published to GHCR as a
+# multi-arch manifest (linux/amd64 + linux/arm64). Nothing here comes from a
+# vendor registry, and nothing rides a moving upstream tag.
+#
+# ace_image_tag pins the whole set at once. CI publishes both :latest and a
+# dated :YYYYMMDD-<sha>; pin the dated tag so a re-run months apart installs
+# the same platform, and bumping is this one line.
+ace_image_tag: latest
+ace_registry: ghcr.io/sammonsjl
 
+gateway_image: "{{ ace_registry }}/ace-gateway:{{ ace_image_tag }}"
+controller_image: "{{ ace_registry }}/ace-controller:{{ ace_image_tag }}"
+hub_image: "{{ ace_registry }}/ace-hub:{{ ace_image_tag }}"
+eda_image: "{{ ace_registry }}/ace-eda:{{ ace_image_tag }}"
+receptor_image: "{{ ace_registry }}/ace-receptor:{{ ace_image_tag }}"
+ee_image: "{{ ace_registry }}/ace-ee-minimal:{{ ace_image_tag }}"
+de_image: "{{ ace_registry }}/ace-de-supported:{{ ace_image_tag }}"
+
+# Not ours, and deliberately so. None is a vendor image, none is the lesson,
+# and each is configured entirely by files this collection mounts.
 envoy_image: docker.io/envoyproxy/envoy:v1.33.5
-controller_image: ghcr.io/ansible/awx:devel
-eda_image: quay.io/ansible/eda-server:main          # multi-arch, rebuilt daily
-eda_web_image: quay.io/ansible/eda-ui:latest        # nginx mux for gunicorn/daphne
-de_image: quay.io/ansible/ansible-rulebook:main     # decision environment (multi-arch)
-receptor_image: quay.io/ansible/receptor:latest
-ee_image: quay.io/ansible/awx-ee:latest
 postgresql_image: docker.io/library/postgres:15
 redis_image: docker.io/library/redis:7
 trust_image: quay.io/rockylinux/rockylinux:9   # EL9 userspace for one-shot update-ca-trust
+
+# hub-web and eda-web are pure nginx muxes in front of their component's
+# sockets — no application, every byte served from a mounted nginx.conf and a
+# shared volume. The console in the gateway image is the real front door for
+# both, so stock nginx is all either container needs.
+hub_web_image: docker.io/library/nginx:stable
+eda_web_image: docker.io/library/nginx:stable
 
 # ── Ports (single host, network:host — separation is by port number) ────────
 envoy_https_port: 443

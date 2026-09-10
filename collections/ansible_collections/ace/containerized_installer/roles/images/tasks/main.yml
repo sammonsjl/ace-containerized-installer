@@ -1,76 +1,51 @@
 ---
-- name: Prefer published multi-arch images from GHCR, fall back to local tarballs
-  block:
-    - name: Pull gateway/hub images from GHCR
-      containers.podman.podman_image:
-        name: '{{ item.ghcr }}'
-      loop:
-        - { ghcr: '{{ gateway_ghcr_image }}', local: '{{ gateway_image }}' }
-        - { ghcr: '{{ hub_ghcr_image }}', local: '{{ hub_image }}' }
-      loop_control:
-        label: '{{ item.ghcr }}'
+# Every image is a fully-qualified reference to a published multi-arch manifest,
+# so acquisition is one pull. The GHCR-first-then-retag dance this replaced
+# existed only because gateway and hub were the sole images we built; now that
+# all of them are, there is nothing left to retag.
 
-    - name: Tag pulled images to the local names the rest of the collection expects
-      containers.podman.podman_tag:
-        image: '{{ item.ghcr }}'
-        target_names:
-          - '{{ item.local }}'
-      loop:
-        - { ghcr: '{{ gateway_ghcr_image }}', local: '{{ gateway_image }}' }
-        - { ghcr: '{{ hub_ghcr_image }}', local: '{{ hub_image }}' }
-      loop_control:
-        label: '{{ item.local }}'
-  rescue:
-    - name: GHCR pull failed — check for locally-built images
-      containers.podman.podman_image_info:
-        name: '{{ item.image }}'
-      register: _local_image_info
-      loop:
-        - { image: '{{ gateway_image }}', tar: '{{ gateway_image_tar }}' }
-        - { image: '{{ hub_image }}', tar: '{{ hub_image_tar }}' }
-      loop_control:
-        label: '{{ item.image }}'
-
-    - name: Check for locally-built image tarballs
-      ansible.builtin.stat:
-        path: '{{ item.item.tar }}'
-      register: _local_tars
-      when: item.images | length == 0
-      loop: '{{ _local_image_info.results }}'
-      loop_control:
-        label: '{{ item.item.image }}'
-
-    - name: Assert a local tarball exists if the image isn't already loaded
-      ansible.builtin.assert:
-        that: item.skipped is defined or item.stat.exists
-        fail_msg: >-
-          GHCR pull failed for {{ item.item.item.image }} and no local tarball
-          was found at {{ item.item.item.tar }}. Either fix connectivity/auth
-          to ghcr.io, or build+podman save it locally (see README).
-      loop: '{{ _local_tars.results }}'
-      loop_control:
-        label: '{{ item.item.item.image }}'
-
-    - name: Load locally-built images from delivered tarballs
-      containers.podman.podman_load:
-        input: '{{ item.item.tar }}'
-      when: item.images | length == 0
-      loop: '{{ _local_image_info.results }}'
-      loop_control:
-        label: '{{ item.item.image }}'
-
-- name: Pull public images
+- name: Pull every image the platform runs
   containers.podman.podman_image:
     name: '{{ item }}'
-  loop:
-    - '{{ envoy_image }}'
-    - '{{ controller_image }}'
-    - '{{ eda_image }}'
-    - '{{ eda_web_image }}'
-    - '{{ de_image }}'
-    - '{{ hub_web_image }}'
-    - '{{ receptor_image }}'
-    - '{{ ee_image }}'
-    - '{{ postgresql_image }}'
-    - '{{ redis_image }}'
-    - '{{ trust_image }}'
+  loop: '{{ _ace_images }}'
+  register: _pulled
+  # An offline or rate-limited registry should not fail the play outright when
+  # a local tarball can still satisfy it; the assert below is what actually
+  # decides, once we know which images are missing.
+  failed_when: false
+
+- name: Note which images the pull could not satisfy
+  ansible.builtin.set_fact:
+    _missing: >-
+      {{ _pulled.results | selectattr('failed', 'defined') | selectattr('failed')
+         | map(attribute='item') | list }}
+
+- name: Load missing images from delivered tarballs
+  when: _missing | length > 0 and ace_images_tar_dir is defined
+  block:
+    - name: Check for a tarball per missing image
+      ansible.builtin.stat:
+        path: '{{ ace_images_tar_dir }}/{{ item | regex_replace(".*/", "") | regex_replace(":.*", "") }}.tar'
+      register: _tars
+      loop: '{{ _missing }}'
+
+    - name: Load them
+      containers.podman.podman_load:
+        input: '{{ item.stat.path }}'
+      when: item.stat.exists
+      loop: '{{ _tars.results }}'
+      loop_control:
+        label: '{{ item.stat.path }}'
+
+    - name: Record what the tarballs covered
+      ansible.builtin.set_fact:
+        _missing: >-
+          {{ _tars.results | rejectattr('stat.exists') | map(attribute='item') | list }}
+
+- name: Fail with the images that could not be acquired
+  ansible.builtin.assert:
+    that: _missing | length == 0
+    fail_msg: >-
+      Could not acquire: {{ _missing | join(', ') }}.
+      Fix connectivity or authentication to the registry, or set
+      ace_images_tar_dir to a directory holding <image-name>.tar for each.
