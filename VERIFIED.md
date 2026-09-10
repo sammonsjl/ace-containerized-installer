@@ -55,11 +55,28 @@ Deliberately upstream, and nothing else:
 - `eda-web` runs stock nginx. `quay.io/ansible/eda-ui` was only ever supplying
   the nginx binary.
 
+## Second run — from GHCR, 2026-09-10
+
+The first run used images side-loaded over SSH, because nothing was published
+yet. Repeated after CI published all eight, with `ace_image_tag` pinned to the
+dated tag so every image had to come from the registry:
+
+    PLAY RECAP
+    ace-installer : ok=190  changed=41  unreachable=0  failed=0  skipped=33
+
+    E2E PASSED   (job template 6, job 3 -> successful)
+
+Every container now runs `ghcr.io/sammonsjl/ace-*:20260910-11f2029` — built by
+GitHub Actions from pinned upstream commits, pulled anonymously from a public
+registry. All eight packages are anonymously pullable.
+
+Each image carries the commit it was built from:
+
+    ace.source.ref=94333d005e22acdf35706f289981af8da711a943   (ace-controller -> ansible/awx)
+    org.opencontainers.image.revision=11f2029a...             (the ace-images commit)
+
 ## Caveats
 
-- Images were side-loaded to the host under their GHCR names rather than pulled.
-  Nothing is published yet, so CI has not run and the workflows are unverified
-  beyond YAML parsing.
-- `ace_image_tag` is still `latest`. Pin the dated tag once CI publishes.
-- `ace-git-server` and `ace-de-supported` are built but were not exercised by
-  this run; the decision environment is registered, not fired.
+- `ace-git-server` and `ace-de-supported` are built and published but were not
+  exercised by this run; the decision environment is registered, not fired.
+- `uninstall.yml` remains untested.

@@ -14,7 +14,7 @@ ace_dir: "{{ ansible_user_dir }}/ace"
 # ace_image_tag pins the whole set at once. CI publishes both :latest and a
 # dated :YYYYMMDD-<sha>; pin the dated tag so a re-run months apart installs
 # the same platform, and bumping is this one line.
-ace_image_tag: latest
+ace_image_tag: 20260910-11f2029
 ace_registry: ghcr.io/sammonsjl
 
 gateway_image: "{{ ace_registry }}/ace-gateway:{{ ace_image_tag }}"
