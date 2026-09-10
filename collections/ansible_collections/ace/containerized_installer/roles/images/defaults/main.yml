@@ -1,0 +1,20 @@
+---
+# Optional offline fallback: a directory holding <image-name>.tar for any image
+# the registry cannot serve, e.g. ace-controller.tar. Undefined by default —
+# the registry is the normal path.
+# ace_images_tar_dir: /var/tmp/ace-images
+
+_ace_images:
+  - '{{ gateway_image }}'
+  - '{{ controller_image }}'
+  - '{{ hub_image }}'
+  - '{{ hub_web_image }}'
+  - '{{ eda_image }}'
+  - '{{ eda_web_image }}'
+  - '{{ receptor_image }}'
+  - '{{ ee_image }}'
+  - '{{ de_image }}'
+  - '{{ envoy_image }}'
+  - '{{ postgresql_image }}'
+  - '{{ redis_image }}'
+  - '{{ trust_image }}'

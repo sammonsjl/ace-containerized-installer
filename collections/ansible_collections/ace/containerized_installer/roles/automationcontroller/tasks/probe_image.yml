@@ -1,5 +1,7 @@
 ---
-# awx:devel is a moving tag — fail loudly here if the launch contract drifted.
+# The controller image is ours and pinned now, so this is no longer a guard
+# against someone else's moving tag — it is a guard against our own build
+# regressing. Cheap, and it fails here rather than inside a init container.
 - name: Probe the controller image
   ansible.builtin.command:
     argv:

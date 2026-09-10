@@ -14,8 +14,13 @@
     mode: '0640'
   notify: Restart receptor
 
-# security_opt label=disable + host podman binary/socket: receptor launches
+# security_opt label=disable + the host podman socket: receptor launches
 # execution-environment containers via the host's rootless podman.
+#
+# ace-receptor ships podman itself, so nothing is bind-mounted from the host
+# any more. With CONTAINER_HOST set the in-image podman is a remote client of
+# the host's socket, which needs no binary, no libsubid, and no subuid range —
+# only the identical-path job directories below.
 - name: Create the receptor container
   containers.podman.podman_container:
     name: receptor
@@ -38,9 +43,6 @@
       - 'receptor_run:/run/receptor:U'
       - 'receptor_data:/var/lib/receptor:U'
       - 'receptor_runner:/home/runner:U'
-      - '/usr/bin/podman:/usr/bin/podman:ro'
-      # the EL9 podman binary needs libsubid, absent from the receptor image
-      - '/usr/lib64/libsubid.so.3:/usr/lib64/libsubid.so.3:ro'
       - '/run/user/{{ ansible_user_uid }}/podman/podman.sock:/run/user/{{ ansible_user_uid }}/podman/podman.sock'
       # Job dirs bind at IDENTICAL host/container paths: ansible-runner in this
       # container starts EE containers through the HOST podman socket, so every
