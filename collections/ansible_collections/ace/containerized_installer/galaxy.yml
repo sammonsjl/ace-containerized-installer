@@ -9,7 +9,7 @@ description: >-
   Open-source mirror of the AAP containerized installer mechanics: deploys the
   ACE control plane (gateway + AWX controller) as rootless podman containers
   managed by systemd user units. Written from scratch against upstream projects;
-  the Red Hat setup bundle is used as a behavioral spec only.
+  the vendor's setup bundle is used as a behavioral spec only. See NOTICE.
 license:
   - Apache-2.0
 tags:

@@ -2,8 +2,8 @@
 
 Deploys the **ACE control plane** — the open-source mirror of Ansible Automation
 Platform's gateway + controller — as **rootless podman containers managed by
-systemd user units**, using the exact mechanics of Red Hat's containerized
-installer, rebuilt from scratch on upstream images.
+systemd user units**, rebuilt from scratch on images this project builds
+itself.
 
 ```
                        ┌────────────────────────── ace-installer VM ─┐
@@ -13,8 +13,8 @@ installer, rebuilt from scratch on upstream images.
                        │       (ace-gateway: jewel + platform UI)    │
                        │       gRPC control plane :50051             │
                        ├──► controller nginx :8443 ──► uwsgi :8050   │
-                       │       (awx:devel — web / task / rsyslog)    │
-                       │       receptor ──► podman ──► awx-ee jobs   │
+                       │       (ace-controller — web/task/rsyslog)   │
+                       │       receptor ──► podman ──► EE jobs       │
                        │  postgres :5432 · redis-tcp :6379 (TLS)     │
                        │  redis-unix (socket, controller broker)     │
                        └─────────────────────────────────────────────┘
@@ -22,11 +22,14 @@ installer, rebuilt from scratch on upstream images.
 
 ## Provenance & licensing
 
-The Red Hat AAP containerized setup bundle was used strictly as a **behavioral
+The vendor's containerized setup bundle was used strictly as a **behavioral
 spec** — container topology, task ordering, port map, config-key semantics.
 Every file in this repo is written from scratch against upstream project
 documentation (envoy, nginx, uwsgi, redis, postgres, AWX, django-ansible-base,
-jewel). No Red Hat content is included. Apache-2.0.
+jewel), and every image it deploys is built from upstream source by
+[ace-images](https://github.com/sammonsjl/ace-images).
+
+Apache-2.0. Full provenance and trademark statement in [`NOTICE`](NOTICE).
 
 ## Prerequisites (macOS host)
 
