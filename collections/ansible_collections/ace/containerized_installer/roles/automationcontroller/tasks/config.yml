@@ -62,3 +62,50 @@
 - name: Remember the licensing.py mount
   ansible.builtin.set_fact:
     _licensing_volume: '{{ ace_dir }}/controller/etc/licensing.py:{{ _licensing_path.stdout | trim }}:ro,z'
+
+# The platform UI asks for `?role_level=<legacy>_role` when it renders a job or
+# workflow template's detail page. DAB validates that value as a permission
+# codename, so every legacy role name 400s and the page fails to render. AWX
+# carries the translation already but does not apply it on this path — see
+# files/patch_field_lookup_backend.py. Same extract-and-mount treatment as
+# licensing.py, so it tracks whatever the image ships.
+- name: Locate DAB's field_lookup_backend.py in the controller image
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --entrypoint
+      - ''
+      - '{{ controller_image }}'
+      - /var/lib/awx/venv/awx/bin/python3
+      # find_spec, not import: importing this module pulls in Django models,
+      # and there are no settings configured in a bare `podman run`.
+      - -c
+      - >-
+        import importlib.util as u;
+        print(u.find_spec('ansible_base.rest_filters.rest_framework.field_lookup_backend').origin)
+  register: _field_lookup_path
+  changed_when: false
+
+# The patcher runs on the target, so it has to live there -- role_path is a
+# path on the control node.
+- name: Install the field_lookup_backend patcher
+  ansible.builtin.copy:
+    src: patch_field_lookup_backend.py
+    dest: '{{ ace_dir }}/controller/etc/patch_field_lookup_backend.py'
+    mode: '0750'
+
+- name: Extract and patch field_lookup_backend.py
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    podman run --rm --entrypoint '' {{ controller_image }}
+    cat {{ _field_lookup_path.stdout | trim }}
+    | python3 {{ ace_dir }}/controller/etc/patch_field_lookup_backend.py
+    > {{ ace_dir }}/controller/etc/field_lookup_backend.py
+  changed_when: false
+
+- name: Remember the field_lookup_backend.py mount
+  ansible.builtin.set_fact:
+    _field_lookup_volume: >-
+      {{ ace_dir }}/controller/etc/field_lookup_backend.py:{{ _field_lookup_path.stdout | trim }}:ro,z
