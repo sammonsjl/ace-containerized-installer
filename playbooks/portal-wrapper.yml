@@ -1,0 +1,252 @@
+---
+# Builds the "API wrapper job template" — the supported way to run a workflow
+# job template from the self-service automation portal.
+#
+# The portal syncs JOB templates into its catalog and not workflow job
+# templates, so the entry point a requester sees has to be a job template. This
+# creates a thin one that pins a single workflow name and fires it through the
+# gateway API (see files/portal_wrapper/launch_workflow.yml).
+#
+# Two plays, matching wire-workloads.yml: deliver the project to the VM, then
+# wire the API from localhost.
+#   ansible-playbook -i inventory/homelab.yml playbooks/portal-wrapper.yml
+#
+# Run scripts/portal-workflow.sh first — that builds the workflow this wraps.
+
+- name: Deliver the wrapper project to PROJECTS_ROOT
+  hosts: ace-installer
+  become: false
+  gather_facts: true
+  vars:
+    project_local_path: portal_wrapper
+  tasks:
+    - name: Create the manual-project directory
+      ansible.builtin.file:
+        path: '{{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}'
+        state: directory
+        mode: '0755'
+
+    - name: Copy the wrapper playbook in
+      ansible.builtin.copy:
+        src: files/portal_wrapper/
+        dest: '{{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}/'
+        mode: '0644'
+
+    # Files added after container start miss the :z relabel, so the confined
+    # controller process is denied by SELinux (EACCES despite 0644).
+    - name: Label the project files for the container (SELinux)
+      ansible.builtin.command:
+        cmd: >-
+          chcon -R -t container_file_t
+          {{ ansible_user_dir }}/ace/controller/data/projects/{{ project_local_path }}
+      become: true
+      changed_when: true
+      when: ansible_selinux.status | default('disabled') == 'enabled'
+
+- name: Wire the wrapper job template into the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    controller_url: https://192.168.1.45
+    controller_user: admin
+    controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
+    organization: Default
+    inventory_name: Demo Inventory
+    project_local_path: portal_wrapper
+    playbook_name: launch_workflow.yml
+    project_name: Portal Wrapper Templates
+    # The workflow being wrapped, and the survey variables it expects. Its own
+    # survey rejects anything else, so these two lists have to agree with it.
+    target_workflow: ACE Portal Demo Workflow
+    passthrough_vars: [target_env, change_ticket]
+    job_template_name: 'Self-Service — Run ACE Portal Demo Workflow'
+    credential_name: ACE gateway (wrapper)
+    aap_credential_type: Red Hat Ansible Automation Platform
+    # awx.awx is not in ace-ee-minimal and could not reach the gateway anyway;
+    # the wrapper uses ansible.builtin.uri, so the minimal EE is enough.
+    ee_name: Control Plane Execution Environment
+    _api: '{{ controller_url }}/api/controller/v2'
+  module_defaults:
+    ansible.builtin.uri:
+      url_username: '{{ controller_user }}'
+      url_password: '{{ controller_password }}'
+      force_basic_auth: true
+      validate_certs: false
+      return_content: true
+  tasks:
+    - name: Find the organization
+      ansible.builtin.uri:
+        url: '{{ _api }}/organizations/?name={{ organization | urlencode }}'
+      register: _org
+      failed_when: _org.json.count != 1
+
+    - name: Find the inventory
+      ansible.builtin.uri:
+        url: '{{ _api }}/inventories/?name={{ inventory_name | urlencode }}'
+      register: _inv
+      failed_when: _inv.json.count != 1
+
+    - name: Find the execution environment
+      ansible.builtin.uri:
+        url: '{{ _api }}/execution_environments/?name={{ ee_name | urlencode }}'
+      register: _ee
+      failed_when: _ee.json.count != 1
+
+    - name: Find the workflow being wrapped
+      ansible.builtin.uri:
+        url: '{{ _api }}/workflow_job_templates/?name={{ target_workflow | urlencode }}'
+      register: _wf
+      failed_when: _wf.json.count != 1
+
+    - name: Read the workflow's survey
+      ansible.builtin.uri:
+        url: '{{ _api }}/workflow_job_templates/{{ _wf.json.results[0].id }}/survey_spec/'
+      register: _wf_survey
+
+    # --- a gateway token for the wrapper to launch with ---
+    # The wrapper runs in an EE with no session, so it needs a bearer token of
+    # its own -- the same token type the portal uses. A token's value is only
+    # returned when it is created, so an existing one cannot be re-read into
+    # the credential: drop it and mint a fresh one each run. Scoped by
+    # description, so this only ever touches the wrapper's own token.
+    - name: Find the AAP credential type
+      ansible.builtin.uri:
+        url: '{{ _api }}/credential_types/?name={{ aap_credential_type | urlencode }}'
+      register: _ct
+      failed_when: _ct.json.count != 1
+
+    - name: Look for a previous wrapper token
+      ansible.builtin.uri:
+        url: '{{ controller_url }}/api/gateway/v1/tokens/?description={{ credential_name | urlencode }}'
+      register: _existing_tokens
+
+    - name: Remove any previous wrapper token
+      ansible.builtin.uri:
+        url: '{{ controller_url }}/api/gateway/v1/tokens/{{ item }}/'
+        method: DELETE
+        status_code: [204, 404]
+      loop: "{{ _existing_tokens.json.results | default([]) | map(attribute='id') | list }}"
+      changed_when: true
+
+    - name: Mint a gateway token for the wrapper
+      ansible.builtin.uri:
+        url: '{{ controller_url }}/api/gateway/v1/tokens/'
+        method: POST
+        body_format: json
+        body:
+          description: '{{ credential_name }}'
+          scope: write
+        status_code: [201]
+      register: _new_token
+      changed_when: true
+      no_log: true
+
+    - name: Check for the credential
+      ansible.builtin.uri:
+        url: '{{ _api }}/credentials/?name={{ credential_name | urlencode }}'
+      register: _cred
+
+    - name: Create or update the gateway credential
+      ansible.builtin.uri:
+        url: "{{ _api }}/credentials/{{ (_cred.json.count > 0) | ternary((_cred.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_cred.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ credential_name }}'
+          description: Gateway token the wrapper job template launches with.
+          organization: '{{ _org.json.results[0].id }}'
+          credential_type: '{{ _ct.json.results[0].id }}'
+          inputs:
+            host: '{{ controller_url }}'
+            verify_ssl: false
+            oauth_token: '{{ _new_token.json.token }}'
+        status_code: [200, 201]
+      register: _cred_write
+      changed_when: true
+      no_log: true
+
+    # --- manual project holding the wrapper playbook ---
+    - name: Check for the project
+      ansible.builtin.uri:
+        url: '{{ _api }}/projects/?name={{ project_name | urlencode }}'
+      register: _proj
+
+    - name: Create or update the project
+      ansible.builtin.uri:
+        url: "{{ _api }}/projects/{{ (_proj.json.count > 0) | ternary((_proj.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_proj.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ project_name }}'
+          description: Wrapper playbooks that launch workflows for the portal.
+          organization: '{{ _org.json.results[0].id }}'
+          scm_type: ''
+          local_path: '{{ project_local_path }}'
+        status_code: [200, 201]
+      register: _proj_write
+      changed_when: true
+
+    # --- the wrapper job template itself ---
+    - name: Check for the job template
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/?name={{ job_template_name | urlencode }}'
+      register: _jt
+
+    - name: Create or update the wrapper job template
+      ansible.builtin.uri:
+        url: "{{ _api }}/job_templates/{{ (_jt.json.count > 0) | ternary((_jt.json.results | map(attribute='id') | first | default('')) ~ '/', '') }}"
+        method: "{{ (_jt.json.count > 0) | ternary('PATCH', 'POST') }}"
+        body_format: json
+        body:
+          name: '{{ job_template_name }}'
+          description: >-
+            Launches the "{{ target_workflow }}" workflow. The portal syncs job
+            templates only, so this is the entry point a requester starts.
+          job_type: run
+          organization: '{{ _org.json.results[0].id }}'
+          project: '{{ _proj_write.json.id }}'
+          playbook: '{{ playbook_name }}'
+          inventory: '{{ _inv.json.results[0].id }}'
+          execution_environment: '{{ _ee.json.results[0].id }}'
+          ask_variables_on_launch: false
+          survey_enabled: true
+          # Pinned, not surveyed: the survey may not choose the workflow.
+          extra_vars: >-
+            {{
+              {
+                'workflow_name': target_workflow,
+                'allowed_workflows': [target_workflow],
+                'passthrough_vars': passthrough_vars,
+                'wait_for_workflow': false,
+              } | to_nice_yaml
+            }}
+        status_code: [200, 201]
+      register: _jt_write
+      changed_when: true
+
+    - name: Attach the gateway credential to the job template
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/{{ _jt_write.json.id }}/credentials/'
+        method: POST
+        body_format: json
+        body:
+          id: '{{ _cred_write.json.id }}'
+        status_code: [201, 204]
+      changed_when: true
+
+    - name: Mirror the workflow's survey onto the wrapper
+      # The requester answers these in the portal; the wrapper forwards exactly
+      # these variables and nothing else.
+      ansible.builtin.uri:
+        url: '{{ _api }}/job_templates/{{ _jt_write.json.id }}/survey_spec/'
+        method: POST
+        body_format: json
+        body: '{{ _wf_survey.json }}'
+        status_code: [200, 201]
+      changed_when: true
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          Wrapper job template {{ _jt_write.json.id }} "{{ job_template_name }}"
+          launches workflow "{{ target_workflow }}". Sync the portal to pick it up.

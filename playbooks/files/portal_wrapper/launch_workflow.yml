@@ -1,0 +1,115 @@
+---
+# API wrapper job template — the supported bridge for running a workflow job
+# template from the self-service automation portal.
+#
+# The portal's catalog syncs JOB templates only; workflow job templates are not
+# synced and no setting changes that. So the thing a requester starts has to BE
+# a job template. This playbook is that job template's body: it takes the
+# survey answers and fires a named workflow through the platform API.
+#
+# Why `uri` and not awx.awx.workflow_launch / ansible.controller.workflow_launch:
+# once the controller has RESOURCE_SERVER set it enforces JWT-only auth and
+# answers 401 to a direct call, so everything must arrive via the gateway — and
+# the gateway publishes the controller at /api/controller/v2/, not /api/v2/.
+# awx.awx builds /api/v2/ against its host and would 404. The gateway API is
+# one endpoint with one token, which is the whole point of the consolidated
+# API; `uri` uses it directly and needs no collection in the EE.
+#
+# Variables come from two places:
+#   - the "Red Hat Ansible Automation Platform" credential injects
+#     aap_hostname / aap_token / aap_validate_certs as extra vars
+#   - the job template pins workflow_name and passthrough_vars, and surveys
+#     whatever the target workflow's own survey requires
+
+- name: Launch a workflow job template on behalf of the portal
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Pinned by the wrapper job template, never surveyed. The allow-list is the
+    # point of this file: a mistyped — or injected — extra var must not be able
+    # to fire a workflow this template was not meant to run.
+    allowed_workflows: []
+    passthrough_vars: []
+    wait_for_workflow: false
+    aap_validate_certs: false
+
+  tasks:
+    - name: Check the requested workflow is allow-listed
+      ansible.builtin.assert:
+        that:
+          - workflow_name is defined
+          - allowed_workflows | length > 0
+          - workflow_name in allowed_workflows
+        fail_msg: >-
+          Refusing to launch {{ workflow_name | default('(unset)') }}.
+          This template may launch: {{ allowed_workflows | join(', ') | default('(nothing configured)', true) }}
+        success_msg: '{{ workflow_name }} is allow-listed for this template.'
+
+    - name: Collect the survey answers this workflow expects
+      # A survey-enabled workflow rejects extra vars that are not in its own
+      # survey, so pass exactly what it asked for and nothing else.
+      ansible.builtin.set_fact:
+        _workflow_extra_vars: >-
+          {{ _workflow_extra_vars | default({})
+             | combine({item: lookup('vars', item)}) }}
+      loop: '{{ passthrough_vars }}'
+      when: item in vars
+
+    - name: Look up the workflow job template by name
+      ansible.builtin.uri:
+        url: '{{ aap_hostname }}/api/controller/v2/workflow_job_templates/?name={{ workflow_name | urlencode }}'
+        headers:
+          Authorization: 'Bearer {{ aap_token }}'
+        validate_certs: '{{ aap_validate_certs | bool }}'
+        return_content: true
+      register: _wfjt
+      failed_when: _wfjt.json.count != 1
+
+    - name: Launch it
+      ansible.builtin.uri:
+        url: >-
+          {{ aap_hostname }}/api/controller/v2/workflow_job_templates/{{ _wfjt.json.results[0].id }}/launch/
+        method: POST
+        headers:
+          Authorization: 'Bearer {{ aap_token }}'
+        body_format: json
+        body:
+          extra_vars: '{{ _workflow_extra_vars | default({}) }}'
+        validate_certs: '{{ aap_validate_certs | bool }}'
+        status_code: [201, 202]
+        return_content: true
+      register: _launch
+
+    - name: Report where the run went
+      ansible.builtin.debug:
+        msg: >-
+          Launched "{{ workflow_name }}" as workflow job {{ _launch.json.id }} —
+          {{ aap_hostname }}/execution/workflows/{{ _launch.json.id }}/output
+
+    # Default is to return as soon as the workflow is started: the requester
+    # watches it in the platform, rather than holding a job (and a portal task)
+    # open for the length of the workflow. Flip wait_for_workflow to true when
+    # the caller genuinely needs the outcome.
+    - name: Wait for the workflow to finish
+      when: wait_for_workflow | bool
+      block:
+        - name: Poll the workflow job until it reaches a terminal status
+          ansible.builtin.uri:
+            url: '{{ aap_hostname }}/api/controller/v2/workflow_jobs/{{ _launch.json.id }}/'
+            headers:
+              Authorization: 'Bearer {{ aap_token }}'
+            validate_certs: '{{ aap_validate_certs | bool }}'
+            return_content: true
+          register: _poll
+          until: _poll.json.status in ['successful', 'failed', 'error', 'canceled']
+          retries: 240
+          delay: 15
+
+        - name: Fail if the workflow did not succeed
+          ansible.builtin.assert:
+            that: _poll.json.status == 'successful'
+            fail_msg: >-
+              Workflow job {{ _launch.json.id }} finished {{ _poll.json.status }} —
+              {{ aap_hostname }}/execution/workflows/{{ _launch.json.id }}/output
