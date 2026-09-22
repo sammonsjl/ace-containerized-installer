@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # End-to-end verification through the envoy front door (run from the repo root).
-# Usage: scripts/e2e.sh [host]
+# Usage: scripts/e2e.sh <host>
+#
+# The host is required. It used to default to 192.168.56.30, the Vagrant/Fusion
+# box, which has not existed since that lab was retired -- so a bare run failed
+# by timing out against nothing rather than saying what was wrong.
 set -euo pipefail
 
-HOST="${1:-192.168.56.30}"
+if [ $# -lt 1 ]; then
+  echo "usage: scripts/e2e.sh <host>    # e.g. scripts/e2e.sh 192.168.1.45" >&2
+  exit 2
+fi
+HOST="$1"
 PASS="$(cat .secrets/admin_password)"
 BASE="https://${HOST}"
 CURL=(curl -sk -u "admin:${PASS}")
