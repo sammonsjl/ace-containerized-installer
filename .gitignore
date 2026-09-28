@@ -1,11 +1,5 @@
-# delivered out-of-band (podman save on the build host)
-images/*.tar
-
 # generated secrets persisted for idempotency (lookup('password', ...))
 .secrets/
-
-# vagrant state
-.vagrant/
 
 # installed galaxy collections (requirements.yml is the source of truth)
 collections/ansible_collections/*
