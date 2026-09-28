@@ -117,6 +117,27 @@ about 20 minutes.
 
 So the 8 GB / 4 vCPU size is enough for the whole control plane plus a job.
 
+## Fifth run — de-branded tree, default inventory, 2026-09-28
+
+A regression run after the de-brand pass and the removal of Vagrant: a fresh
+VM from `terraform/kvm/`, the same `20260928-r1` images, and `install.yml`
+run with no `-i` so that `ansible.cfg`'s new default (`inventory/kvm.yml`) and
+the `ace_ip: "{{ ansible_host }}"` default carried it.
+
+    PLAY RECAP
+    ace-installer : ok=230  changed=121  unreachable=0  failed=0  skipped=3
+
+    E2E PASSED            (job template -> successful)
+    portal-workflow.sh    exit 0 (three-step workflow, all nodes successful)
+    portal-wrapper.yml    failed=0
+    wrapper job template  successful; launched the portal workflow, which
+                          finished successful with the survey answers passed through
+
+The run proved the portal wrapper's new credential-type lookup.
+`credential_types/?namespace=controller` returns exactly one type, the
+built-in controller type. The wrapper now finds it by that stable upstream key
+instead of its display name.
+
 ## Caveats
 
 - `ace-git-server` and `ace-de-supported` are built and published but were not

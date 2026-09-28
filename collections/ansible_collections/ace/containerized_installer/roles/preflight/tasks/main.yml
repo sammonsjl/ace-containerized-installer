@@ -6,15 +6,15 @@
       - ansible_os_family == 'RedHat'
       - ansible_architecture in ['aarch64', 'x86_64']
     fail_msg: >-
-      This installer targets EL9 (Rocky/Alma/RHEL 9) on aarch64 or x86_64.
+      This installer targets EL9 (Rocky/Alma 9 or compatible) on aarch64 or x86_64.
 
 - name: Assert enough memory for the full stack
   ansible.builtin.assert:
     that: ansible_memtotal_mb >= 7000
     fail_msg: 'At least 8 GB of RAM is required (found {{ ansible_memtotal_mb }} MB).'
 
-# The Vagrant box ships these; a stock Rocky cloud image (terraform/ace)
-# does not. python3-cryptography/psycopg2 back the community.crypto and
+# A stock Rocky cloud image (terraform/proxmox, terraform/kvm) ships without
+# these. python3-cryptography/psycopg2 back the community.crypto and
 # postgresql modules on the target; python3-firewall backs ansible.posix.
 # firewalld in the common role.
 - name: Install required OS packages

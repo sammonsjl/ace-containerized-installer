@@ -25,19 +25,19 @@ licensed source, cloned at a pinned commit at build time:
   ansible/jewel, ansible/ansible-ui, ansible/awx, ansible/galaxy_ng,
   ansible/eda-server, ansible/receptor, ansible/django-ansible-base
 
-Red Hat's own distribution of this platform was examined as a BEHAVIORAL
-SPECIFICATION only: to learn what the official images and installer produce,
-so that an equivalent end state could be written independently. Observing a
-released artifact and describing what it does is the whole of that exercise.
+A commercial distribution of this platform was examined as a BEHAVIORAL
+SPECIFICATION only: to learn what its images and installer produce, so that
+an equivalent end state could be written independently. Observing a released
+artifact and describing what it does is the whole of that exercise.
 
-No Red Hat file, template, role, playbook, manifest, or configuration has
-been copied into this project, and no vendor distribution is redistributed
-by it.
+No file, template, role, playbook, manifest, or configuration from any
+commercial distribution has been copied into this project, and none is
+redistributed by it.
 
 FILESYSTEM PATHS
 ----------------
 
-Some filesystem paths retain vendor-derived names — /opt/aap-gateway,
+Some filesystem paths retain upstream-derived names — /opt/aap-gateway,
 /etc/ansible-automation-platform/, /var/lib/ansible-automation-platform/.
 These are deliberate and are a compatibility decision, not a claim of
 association: upstream tooling, shipped scripts and management commands

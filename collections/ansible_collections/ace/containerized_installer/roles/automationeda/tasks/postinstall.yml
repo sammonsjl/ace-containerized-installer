@@ -1,6 +1,5 @@
 ---
-# Register the default decision environment (the bundle does this with its
-# eda_decision_environment module — same API, spoken directly).
+# Register the default decision environment over the EDA REST API directly.
 
 # Envoy only routes to EDA after its health checks pass (3 x 10s).
 - name: Wait for EDA through the gateway

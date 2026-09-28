@@ -1,7 +1,8 @@
 ---
-# Install order mirrors the containerized installer's phases:
-#   preflight → common (podman/TLS) → database → redis → gateway → gateway
-#   postinstall (service registration) → receptor → controller → merge.
+# Install order:
+#   preflight → common (podman/TLS) → images → database → redis → gateway →
+#   gateway postinstall (service registration) → receptor → controller →
+#   EDA → hub → merge.
 #
 # Everything runs become:false (rootless podman) except the single sysctl
 # task inside the common role that lets rootless envoy bind 443/80.
@@ -10,8 +11,8 @@
   become: false
   gather_facts: true
   # Protects the Ansible modules themselves (community.crypto imports
-  # python-cryptography ON THE TARGET, which SIGILLs on aarch64-under-Fusion
-  # without OPENSSL_armcap=0).
+  # python-cryptography ON THE TARGET, which SIGILLs on some virtualized
+  # aarch64 guests without OPENSSL_armcap=0).
   environment: '{{ common_env }}'
   tasks:
     - name: Run preflight checks

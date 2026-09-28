@@ -1,5 +1,5 @@
 ---
-# ES256 keypair for container-registry token signing (bundle mechanic)
+# ES256 keypair for container-registry token signing
 - name: Generate the container-auth private key
   community.crypto.openssl_privatekey:
     path: '{{ ace_dir }}/hub/etc/container_auth_private_key.pem'

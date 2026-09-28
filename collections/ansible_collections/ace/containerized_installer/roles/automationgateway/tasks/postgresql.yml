@@ -1,5 +1,5 @@
 ---
-# Like the bundle, the consuming component creates its own database.
+# Each consuming component creates its own database.
 - name: Create the gateway database user
   community.postgresql.postgresql_user:
     login_host: 127.0.0.1

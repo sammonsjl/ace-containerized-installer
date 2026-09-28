@@ -1,7 +1,7 @@
 ---
-# Service registration over the gateway REST API. The RH installer drives the
-# same API through its ansible.platform modules; those aren't published
-# upstream, so we speak REST directly with GET-then-POST idempotency.
+# Service registration over the gateway REST API, spoken directly with
+# GET-then-POST idempotency — the ansible.platform modules that wrap this API
+# aren't published upstream.
 #
 # validate_certs is off for these loopback calls: ansible's urls.py cannot
 # build a verified SSL context on EL9 at all (ASN1 NOT_ENOUGH_DATA against any
@@ -84,7 +84,7 @@
     label: '{{ _svc.name }}'
 
 # Hub needs extra routed paths beyond /api/galaxy/: the container registry,
-# pulp content, registry tokens (bundle's route set, minus signing extras).
+# pulp content, registry tokens (no signing routes).
 - name: Register hub routes
   ansible.builtin.include_tasks: register_route.yml
   loop:

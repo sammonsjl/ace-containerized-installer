@@ -1,6 +1,6 @@
 ---
-# Hub = galaxy_ng on pulpcore. Settings.py travels as a podman secret
-# (bundle pattern); redis is the shared unix socket, db 2.
+# Hub = galaxy_ng on pulpcore. Settings.py travels as a podman secret;
+# redis is the shared unix socket, db 2.
 
 _hub_env: >-
   {{ common_env | combine({

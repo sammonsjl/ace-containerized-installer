@@ -10,7 +10,7 @@
     name: postgresql
 
 # Official postgres image, NOT keep-id: the server runs as in-image uid 999.
-# Like the bundle, we pin that uid onto the host user with an explicit uidmap
+# We pin that uid onto the host user with an explicit uidmap
 # (container 999 -> the rootless user), so the host-owned 0640 TLS key reads
 # as postgres:postgres inside the container.
 - name: Create the postgresql container

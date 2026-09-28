@@ -85,8 +85,8 @@
       - '{{ ace_dir }}/tls/extracted:/etc/pki/ca-trust/extracted:z'
   when: _ca_cert is changed or not _trust_pem.stat.exists
 
-# The VM's own trust store also gets the CA (the bundle does the same on its
-# hosts) so ansible/curl on the host verify without ca_path juggling.
+# The VM's own trust store also gets the CA, so ansible/curl on the host
+# verify without ca_path juggling.
 - name: Install the CA into the host trust store
   ansible.builtin.copy:
     src: '{{ ace_dir }}/tls/ca.cert'

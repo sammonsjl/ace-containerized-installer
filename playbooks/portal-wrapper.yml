@@ -61,7 +61,6 @@
     passthrough_vars: [target_env, change_ticket]
     job_template_name: 'Self-Service — Run ACE Portal Demo Workflow'
     credential_name: ACE gateway (wrapper)
-    aap_credential_type: Red Hat Ansible Automation Platform
     # awx.awx is not in ace-ee-minimal and could not reach the gateway anyway;
     # the wrapper uses ansible.builtin.uri, so the minimal EE is enough.
     ee_name: Control Plane Execution Environment
@@ -103,18 +102,20 @@
         url: '{{ _api }}/workflow_job_templates/{{ _wf.json.results[0].id }}/survey_spec/'
       register: _wf_survey
 
+    # The built-in controller credential type, found by its stable namespace
+    # rather than its display name.
+    - name: Find the controller credential type
+      ansible.builtin.uri:
+        url: '{{ _api }}/credential_types/?namespace=controller'
+      register: _ct
+      failed_when: _ct.json.count != 1
+
     # --- a gateway token for the wrapper to launch with ---
     # The wrapper runs in an EE with no session, so it needs a bearer token of
     # its own -- the same token type the portal uses. A token's value is only
     # returned when it is created, so an existing one cannot be re-read into
     # the credential: drop it and mint a fresh one each run. Scoped by
     # description, so this only ever touches the wrapper's own token.
-    - name: Find the AAP credential type
-      ansible.builtin.uri:
-        url: '{{ _api }}/credential_types/?name={{ aap_credential_type | urlencode }}'
-      register: _ct
-      failed_when: _ct.json.count != 1
-
     - name: Look for a previous wrapper token
       ansible.builtin.uri:
         url: '{{ controller_url }}/api/gateway/v1/tokens/?description={{ credential_name | urlencode }}'

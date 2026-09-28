@@ -16,8 +16,8 @@
 # API; `uri` uses it directly and needs no collection in the EE.
 #
 # Variables come from two places:
-#   - the "Red Hat Ansible Automation Platform" credential injects
-#     aap_hostname / aap_token / aap_validate_certs as extra vars
+#   - the built-in controller credential type injects aap_hostname /
+#     aap_token / aap_validate_certs as extra vars (names defined upstream)
 #   - the job template pins workflow_name and passthrough_vars, and surveys
 #     whatever the target workflow's own survey requires
 

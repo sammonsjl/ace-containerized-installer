@@ -1,5 +1,5 @@
 ---
-# EDA (2.7 shape): Postgres-backed dispatcherd — no redis, no scheduler.
+# EDA: Postgres-backed dispatcherd — no redis, no scheduler.
 # Settings live in a mounted YAML (EDA_SETTINGS_FILE), secrets via podman.
 
 _eda_env: >-

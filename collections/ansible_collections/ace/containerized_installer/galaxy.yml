@@ -6,10 +6,9 @@ readme: README.md
 authors:
   - Jamie Sammons
 description: >-
-  Open-source mirror of the AAP containerized installer mechanics: deploys the
-  ACE control plane (gateway + AWX controller) as rootless podman containers
-  managed by systemd user units. Written from scratch against upstream projects;
-  the vendor's setup bundle is used as a behavioral spec only. See NOTICE.
+  Deploys the ACE control plane (gateway, AWX controller, EDA, hub and
+  receptor) as rootless podman containers managed by systemd user units.
+  Written from scratch against upstream projects. See NOTICE.
 license:
   - Apache-2.0
 tags:

@@ -2,9 +2,7 @@
 # End-to-end verification through the envoy front door (run from the repo root).
 # Usage: scripts/e2e.sh <host>
 #
-# The host is required. It used to default to 192.168.56.30, the Vagrant/Fusion
-# box, which has not existed since that lab was retired -- so a bare run failed
-# by timing out against nothing rather than saying what was wrong.
+# The host is required: there is no single lab address to default to.
 set -euo pipefail
 
 if [ $# -lt 1 ]; then

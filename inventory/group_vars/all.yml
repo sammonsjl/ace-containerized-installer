@@ -1,15 +1,17 @@
 ---
 # ── Identity ────────────────────────────────────────────────────────────────
-ace_hostname: ace-installer
-ace_ip: 192.168.56.30
+ace_hostname: ace
+# The inventories set this per host; the default is the SSH address. It must
+# be an IP: it goes into the certificate's IP SAN.
+ace_ip: "{{ ansible_host }}"
 
-# Base directory for all component config on the target (the RH bundle uses ~/aap)
+# Base directory for all component config on the target
 ace_dir: "{{ ansible_user_dir }}/ace"
 
 # ── Images ──────────────────────────────────────────────────────────────────
 # Every platform component is built by ace-images and published to GHCR as a
-# multi-arch manifest (linux/amd64 + linux/arm64). Nothing here comes from a
-# vendor registry, and nothing rides a moving upstream tag.
+# multi-arch manifest (linux/amd64 + linux/arm64). Nothing rides a moving
+# upstream tag.
 #
 # ace_image_tag pins the whole set at once. ace-images' build-all publishes
 # :latest and one tag per run, :YYYYMMDD-r<run> (single-image CI builds use
@@ -26,8 +28,8 @@ receptor_image: "{{ ace_registry }}/ace-receptor:{{ ace_image_tag }}"
 ee_image: "{{ ace_registry }}/ace-ee-minimal:{{ ace_image_tag }}"
 de_image: "{{ ace_registry }}/ace-de-supported:{{ ace_image_tag }}"
 
-# Not ours, and deliberately so. None is a vendor image, none is the lesson,
-# and each is configured entirely by files this collection mounts.
+# Not ours, and deliberately so. Each is a stock public image, none is the
+# lesson, and each is configured entirely by files this collection mounts.
 envoy_image: docker.io/envoyproxy/envoy:v1.33.5
 postgresql_image: docker.io/library/postgres:15
 redis_image: docker.io/library/redis:7
@@ -50,7 +52,7 @@ controller_nginx_port: 8443       # controller nginx (ssl)
 controller_nginx_http_port: 8080
 controller_uwsgi_port: 8050       # 127.0.0.1 only
 controller_daphne_port: 8051      # 127.0.0.1 only
-eda_gunicorn_port: 8010           # 127.0.0.1 only (bundle uses 8000 — taken-adjacent here)
+eda_gunicorn_port: 8010           # 127.0.0.1 only
 eda_daphne_port: 8011             # 127.0.0.1 only
 eda_nginx_port: 8445              # eda web (ssl), behind envoy
 hub_api_port: 24817               # pulpcore-api, 127.0.0.1 only
@@ -82,14 +84,15 @@ controller_secret_key: "{{ lookup('password', secrets_dir ~ '/controller_secret_
 secrets_dir: "{{ (playbook_dir ~ '/../.secrets') | realpath }}"
 
 # ── Shared container environment ─────────────────────────────────────────────
-# OPENSSL_armcap=0: aarch64 VMs under VMware Fusion on Apple Silicon SIGILL
-# (exit 132) in anything importing python-cryptography without it. Harmless on
-# x86_64 and on real arm64 it only disables asm acceleration.
+# OPENSSL_armcap=0: some virtualized aarch64 guests (seen under VMware Fusion
+# on Apple Silicon) SIGILL (exit 132) in anything importing python-cryptography
+# without it. Harmless on x86_64; on real arm64 it only disables asm
+# acceleration.
 common_env:
   OPENSSL_armcap: "0"
 
 # ── URLs ─────────────────────────────────────────────────────────────────────
-# The IP, not the hostname: the vagrant box resolves its own hostname only to
-# IPv6 link-local, and jewel's URL validator wants something resolvable.
+# The IP, not the hostname: the guest's own hostname is not guaranteed to
+# resolve anywhere else, and jewel's URL validator wants something resolvable.
 gateway_main_url: "https://{{ ace_ip }}"
 ca_trust_bundle: /etc/pki/tls/certs/ca-bundle.crt

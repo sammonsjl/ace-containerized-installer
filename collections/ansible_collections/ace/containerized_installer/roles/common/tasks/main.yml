@@ -29,7 +29,7 @@
     - hub/nginx/etc
 
 # Containers log to journald (containers.conf); without this group,
-# journalctl --user shows nothing and debugging is blind. Bundle does the same.
+# journalctl --user shows nothing and debugging is blind.
 - name: Add the deploy user to the systemd-journal group
   ansible.builtin.user:
     name: '{{ ansible_user_id }}'
@@ -42,7 +42,7 @@
     path: '/var/lib/systemd/linger/{{ ansible_user_id }}'
   register: _linger
 
-# User services must survive logout/reboot — same as the bundle.
+# User services must survive logout/reboot.
 - name: Enable systemd linger for the deploy user
   ansible.builtin.command: 'loginctl enable-linger {{ ansible_user_id }}'
   when: not _linger.stat.exists
@@ -69,7 +69,7 @@
     enabled: true
     state: started
 
-# Privileged host prep (the bundle does the same with root): rootless envoy
+# Privileged host prep: rootless envoy
 # must bind 443/80, and firewalld must admit the public ports.
 - name: Allow rootless binding of ports >= 80
   ansible.posix.sysctl:
