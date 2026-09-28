@@ -1,0 +1,18 @@
+---
+# The ACE control-plane host on local KVM/libvirt, built by terraform/kvm/.
+# Run with: ansible-playbook -i inventory/kvm.yml playbooks/install.yml
+#
+# NOTE: ace_* overrides must be HOST vars — inventory-file group vars lose to
+# group_vars/all.yml in Ansible precedence.
+#
+# The address is on terraform/kvm's own NAT network, so it is reachable from
+# this machine only. Keep it in step with that root's `ip` variable.
+all:
+  hosts:
+    ace-installer:
+      ansible_host: 192.168.145.45
+      ansible_user: rocky
+      ansible_ssh_private_key_file: ~/.ssh/ace_lab_ed25519
+      ansible_python_interpreter: /usr/bin/python3
+      ace_hostname: ace
+      ace_ip: 192.168.145.45

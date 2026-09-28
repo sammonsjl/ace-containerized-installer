@@ -63,6 +63,40 @@ open https://192.168.56.30/     # accept the self-signed cert
 cat .secrets/admin_password
 ```
 
+## Building the VM with Terraform (Linux hosts)
+
+Instead of Vagrant, two Terraform roots build the same Rocky 9 host. Both
+render the shared `terraform/cloud-init/user-data.yaml.tftpl`, so the guest is
+identical and the playbooks do not care which one built it.
+
+| Root | Where | Address | Inventory |
+|---|---|---|---|
+| `terraform/proxmox/` | a Proxmox VE node (16 GB / 8 vCPU) | `192.168.1.45` on the LAN | `inventory/homelab.yml` |
+| `terraform/kvm/` | this machine, KVM/libvirt (8 GB / 4 vCPU) | `192.168.145.45` on its own NAT network, reachable from this machine only | `inventory/kvm.yml` |
+
+Both expect the SSH key at `~/.ssh/ace_lab_ed25519` (override with
+`ssh_public_key_path`).
+
+```sh
+# Proxmox: credentials in terraform/proxmox/terraform.tfvars (gitignored)
+terraform -chdir=terraform/proxmox init && terraform -chdir=terraform/proxmox apply
+ansible-playbook -i inventory/homelab.yml playbooks/install.yml
+
+# Local KVM: needs libvirt running and your user in the `libvirt` group
+terraform -chdir=terraform/kvm init && terraform -chdir=terraform/kvm apply
+ansible-playbook -i inventory/kvm.yml playbooks/install.yml
+```
+
+The KVM root creates its own libvirt network (`ace`, 192.168.145.0/24, NAT)
+and storage pool (`ace`, `/var/lib/libvirt/images/ace`), and removes both on
+`terraform destroy`. The guest's serial console is logged to
+`/var/log/libvirt/qemu/ace-console.log` (root-readable); `virsh console ace`
+attaches to it.
+
+It needs hardware virtualization: `/dev/kvm` must exist, i.e. VT-x/AMD-V is
+enabled in the firmware. Without it, `-var domain_type=qemu` runs the VM under
+software emulation — enough to prove the plumbing, far too slow to be useful.
+
 ## Design notes (where we deliberately differ from the bundle)
 
 | Bundle | Here | Why |

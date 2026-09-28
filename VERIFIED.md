@@ -101,6 +101,22 @@ Both patches the controller role applies to its image — `licensing.py` and
 DAB's `field_lookup_backend.py` — still found their anchors in the new AWX and
 DAB, so neither upstream moved underneath them.
 
+## Fourth run — local KVM, 2026-09-28
+
+The same `20260928-r1` images, on a VM built by the new `terraform/kvm/` root
+instead of Proxmox: libvirt on a laptop (i5-8350U, 16 GB), the guest at 8 GB /
+4 vCPU with host-passthrough CPU, on the root's own NAT network at
+`192.168.145.45` (`inventory/kvm.yml`). `terraform apply` to SSH-ready with
+cloud-init finished took 78 s, including the image download; the install took
+about 20 minutes.
+
+    PLAY RECAP
+    ace-installer : ok=230  changed=121  unreachable=0  failed=0  skipped=3
+
+    E2E PASSED            (job template 6, job 1 -> successful)
+
+So the 8 GB / 4 vCPU size is enough for the whole control plane plus a job.
+
 ## Caveats
 
 - `ace-git-server` and `ace-de-supported` are built and published but were not

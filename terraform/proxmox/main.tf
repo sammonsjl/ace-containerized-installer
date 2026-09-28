@@ -1,4 +1,6 @@
-# ACE containerized control plane — one podman host.
+# ACE containerized control plane — one podman host, on Proxmox VE.
+# ../kvm builds the same host on local KVM/libvirt instead; both render the
+# shared ../cloud-init/user-data.yaml.tftpl.
 #
 # A separate root module from the bare-metal estate on purpose. That module's
 # var.nodes map drives /etc/hosts and the NFS export list across all five of
@@ -30,7 +32,7 @@ resource "proxmox_virtual_environment_file" "user_data" {
 
   source_raw {
     file_name = "${var.vm_name}-user-data.yaml"
-    data = templatefile("${path.module}/cloud-init/user-data.yaml.tftpl", {
+    data = templatefile("${path.module}/../cloud-init/user-data.yaml.tftpl", {
       hostname   = var.vm_name
       guest_user = var.guest_user
       ssh_pubkey = local.ssh_pubkey

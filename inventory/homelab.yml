@@ -1,5 +1,5 @@
 ---
-# The ACE control-plane host on Proxmox, built by terraform/ in this repo.
+# The ACE control-plane host on Proxmox, built by terraform/proxmox/.
 # Run with: ansible-playbook -i inventory/homelab.yml playbooks/install.yml
 #
 # NOTE: ace_* overrides must be HOST vars — inventory-file group vars lose to
