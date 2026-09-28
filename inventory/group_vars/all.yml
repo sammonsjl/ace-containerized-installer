@@ -11,10 +11,11 @@ ace_dir: "{{ ansible_user_dir }}/ace"
 # multi-arch manifest (linux/amd64 + linux/arm64). Nothing here comes from a
 # vendor registry, and nothing rides a moving upstream tag.
 #
-# ace_image_tag pins the whole set at once. CI publishes both :latest and a
-# dated :YYYYMMDD-<sha>; pin the dated tag so a re-run months apart installs
-# the same platform, and bumping is this one line.
-ace_image_tag: 20260910-11f2029
+# ace_image_tag pins the whole set at once. ace-images' build-all publishes
+# :latest and one tag per run, :YYYYMMDD-r<run> (single-image CI builds use
+# :YYYYMMDD-<sha>); pin the dated tag so a re-run months apart installs the
+# same platform, and bumping is this one line.
+ace_image_tag: 20260928-r1
 ace_registry: ghcr.io/sammonsjl
 
 gateway_image: "{{ ace_registry }}/ace-gateway:{{ ace_image_tag }}"

@@ -75,6 +75,32 @@ Each image carries the commit it was built from:
     ace.source.ref=94333d005e22acdf35706f289981af8da711a943   (ace-controller -> ansible/awx)
     org.opencontainers.image.revision=11f2029a...             (the ace-images commit)
 
+## Third run — latest upstream, 2026-09-28
+
+ace-images' `build-all` now builds every image from the current head of each
+upstream branch rather than the Containerfile pins. Its first such run
+published `20260928-r1`; this install pinned `ace_image_tag` to it, on a fresh
+VM 145:
+
+    PLAY RECAP
+    ace-installer : ok=230  changed=121  unreachable=0  failed=0  skipped=3
+
+    E2E PASSED            (job template)
+    WORKFLOW E2E PASSED   (approval workflow: approve runs Step B, deny runs Step C)
+    portal-workflow.sh    exit 0 (three-step workflow, all nodes successful)
+    role_level filter     200 for notification_admin_role / admin_role / read_role
+
+Every ACE container runs `ghcr.io/sammonsjl/ace-*:20260928-r1`, built from:
+
+    ansible/jewel               e680bd8   ansible/ansible-ui   3eb11da
+    ansible/awx                 cf3dd7d   ansible/galaxy_ng    43a6d2d
+    ansible/eda-server          f572026   ansible/receptor     18ecf6e
+    django-ansible-base         5d0c475   (the same commit in gateway and hub)
+
+Both patches the controller role applies to its image — `licensing.py` and
+DAB's `field_lookup_backend.py` — still found their anchors in the new AWX and
+DAB, so neither upstream moved underneath them.
+
 ## Caveats
 
 - `ace-git-server` and `ace-de-supported` are built and published but were not
