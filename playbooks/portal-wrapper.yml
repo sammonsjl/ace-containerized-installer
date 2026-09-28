@@ -7,7 +7,7 @@
 # creates a thin one that pins a single workflow name and fires it through the
 # gateway API (see files/portal_wrapper/launch_workflow.yml).
 #
-# Two plays, matching wire-workloads.yml: deliver the project to the VM, then
+# Two plays, matching examples/homelab/wire-workloads.yml: deliver the project to the VM, then
 # wire the API from localhost.
 #   ansible-playbook -i inventory/homelab.yml playbooks/portal-wrapper.yml
 #

@@ -10,7 +10,7 @@
 # is pushed it can instead become a git-SCM project pointing at main.
 #
 # Two plays: deliver files to the VM, then wire the API from localhost.
-#   ansible-playbook -i inventory/homelab.yml playbooks/wire-workloads.yml
+#   ansible-playbook -i inventory/homelab.yml examples/homelab/wire-workloads.yml
 # Needs kubectl access to the execution cluster (to seed DSM creds) and
 # network access to the controller.
 
@@ -52,7 +52,7 @@
   vars:
     controller_url: https://192.168.1.45
     controller_user: admin
-    controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
+    controller_password: "{{ lookup('file', playbook_dir ~ '/../../.secrets/admin_password') }}"
     organization: Default
     project_local_path: homelab_storage
     playbook_name: cleanup-released-pvs.yml

@@ -9,14 +9,14 @@
 # Idempotent: objects are matched by name and PATCHed in place. Run from
 # a machine with kubectl access to the execution cluster and network
 # access to the controller:
-#   ansible-playbook playbooks/wire-execution-plane.yml
+#   ansible-playbook examples/homelab/wire-execution-plane.yml
 - name: Wire a Kubernetes execution plane into the controller
   hosts: localhost
   gather_facts: false
   vars:
     controller_url: https://192.168.1.45
     controller_user: admin
-    controller_password: "{{ lookup('file', playbook_dir ~ '/../.secrets/admin_password') }}"
+    controller_password: "{{ lookup('file', playbook_dir ~ '/../../.secrets/admin_password') }}"
     # The execution-plane contract. Everything below defaults to yojimbo.
     plane_name: yojimbo
     plane_api_url: https://192.168.1.20:6443
