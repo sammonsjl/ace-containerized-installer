@@ -33,10 +33,7 @@ firewalld admits only 443 and 80. Every other port is internal to the host.
 
 Every file in this repo is written from scratch against upstream project
 documentation (envoy, nginx, uwsgi, redis, postgres, AWX, django-ansible-base,
-jewel, galaxy_ng, eda-server, receptor). A commercial distribution of the
-platform was observed only as a **behavioral spec** (container topology, task
-ordering, port map, config-key semantics). Nothing from it is copied or
-redistributed.
+jewel, galaxy_ng, eda-server, receptor).
 
 Apache-2.0. Full provenance and trademark statement in [`NOTICE`](NOTICE).
 
